@@ -1,0 +1,124 @@
+# Stock Agent API
+
+A FastAPI-powered financial analysis platform leveraging LangGraph, Google Gemini, and machine learning for comprehensive stock analysis.
+
+## Features
+
+- **RAG-Enhanced News Analysis**: ChromaDB-powered retrieval for financial news
+- **ML-Based Price Prediction**: GRU neural network for technical analysis
+- **LangGraph Agent**: Multi-tool orchestration for dynamic analysis
+- **Redis Caching**: 24-hour cache for API responses
+- **Rate Limit Handling**: Automatic retry with exponential backoff
+
+## Live Demo
+
+[https://huggingface.co/spaces/YOUR_USERNAME/stock-agent](https://huggingface.co/spaces/YOUR_USERNAME/stock-agent)
+
+## API Endpoint
+
+### POST `/analyze`
+
+**Request:**
+```json
+{
+  "symbol": "AAPL",
+  "timeframe_days": 10,
+  "query": "Analyze Apple's AI strategy" // optional
+}
+```
+
+**Response:**
+```json
+{
+  "symbol": "AAPL",
+  "macro_analysis": "...",
+  "micro_analysis": {...},
+  "final_report": "..."
+}
+```
+
+## Setup for Hugging Face Spaces
+
+### 1. Clone this Space
+```bash
+git clone https://huggingface.co/spaces/YOUR_USERNAME/stock-agent
+cd stock-agent
+```
+
+### 2. Configure Secrets
+
+In your Space's **Settings → Variables and Secrets**, add:
+
+| Secret Name | Value | Required |
+|-------------|-------|----------|
+| `GOOGLE_API_KEY` | Your Gemini API key | Yes |
+| `FINNHUB_API_KEY` | Your Finnhub API key | Yes |
+| `REDIS_URL` | Upstash Redis URL | Yes |
+| `MODEL` | `gemini-2.5-flash` | Optional |
+| `TEXT_EMBEDDING` | `text-embedding-004` | Optional |
+
+### 3. Get a Free Redis Instance (Upstash)
+
+1. Sign up at [upstash.com](https://upstash.com)
+2. Create a Redis database (Select **Free Tier**)
+3. Copy the `REDIS_URL` (looks like `redis://default:xxx@eu1-xxx.upstash.io:6379`)
+4. Add it to your Space secrets
+
+### 4. Push & Deploy
+
+The Space will auto-build and deploy when you push code.
+
+## Local Development
+
+### Prerequisites
+- Python 3.11+
+- Docker (optional)
+
+### Setup
+```bash
+# Clone repo
+git clone https://github.com/YOUR_USERNAME/stock-agent.git
+cd stock-agent
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+```
+
+### Run Locally
+```bash
+uvicorn src.api.index:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Run with Docker
+```bash
+docker-compose up
+```
+
+## Tech Stack
+
+- **Framework**: FastAPI
+- **Agent**: LangGraph
+- **LLM**: Google Gemini 2.5 Flash
+- **Vector DB**: ChromaDB
+- **Cache**: Redis
+- **ML**: PyTorch + scikit-learn
+
+## License
+
+MIT License - Open Source
+
+## Contributing
+
+Pull requests welcome! This project is open source.
+
+---
+
+Built using Google Gemini and LangGraph

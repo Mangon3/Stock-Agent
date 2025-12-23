@@ -1,0 +1,4 @@
+# Development
+.venv/
+__pycache__
+.env

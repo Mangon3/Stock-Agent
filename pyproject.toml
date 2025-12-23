@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-agent"
+version = "0.1.0"
+description = "A stock agent application"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
+    "langchain",
+    "langchain-community",
+    "langchain-google-genai",
+    "google-api-core",
+    "finnhub-python",
+    "beautifulsoup4",
+    "html2text",
+    "numpy",
+    "pandas",
+    "tabulate",
+    "scikit-learn",
+    "redis",
+    "langgraph"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]

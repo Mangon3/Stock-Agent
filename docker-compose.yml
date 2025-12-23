@@ -1,0 +1,35 @@
+
+services:
+  stock-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock_agent_container
+    network_mode: "host"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=localhost
+      - REDIS_PORT=6379
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - MODEL=${MODEL}
+    depends_on:
+      - redis
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    # group_add: 
+    #   - video
+
+  redis:
+    image: redis:alpine
+    container_name: stock_agent_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
