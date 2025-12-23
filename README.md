@@ -1,3 +1,11 @@
+---
+title: Stock Agent API
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # Stock Agent API
 
 A FastAPI-powered financial analysis platform leveraging LangGraph, Google Gemini, and machine learning for comprehensive stock analysis.
