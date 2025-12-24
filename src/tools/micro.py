@@ -37,6 +37,14 @@ class MicroModel:
                 symbols=symbols_parsed,
                 num_epochs=num_epochs
             )
+
+            if training_results.get("status") != "success":
+                logger.error(f"Training failed for {primary_symbol}. Aborting inference.")
+                return {
+                    "status": "error",
+                    "message": f"Training failed: {training_results.get('message')}. Micro-model could not be updated."
+                }
+
             
             # --- Step 2: Execute Inference on the Primary Symbol ---
             logger.info(f"Training successful. Running immediate inference on primary symbol: {primary_symbol}")
