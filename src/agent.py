@@ -41,6 +41,10 @@ class Agent:
         return graph_app, self.llm
 
     @retry_with_backoff(max_retries=5)
+    def call_llm_with_retry(self, prompt):
+        return self.llm.invoke(prompt)
+
+    # Removed blanket retry decorator to prevent re-running news/embeddings on LLM rate limit
     def run_rag_pipeline(
         self,
         query,
@@ -91,7 +95,9 @@ class Agent:
             HumanMessage(content=query)
         ]
         
-        final_response = self.llm.invoke(self.final_prompt).content
+        # Use the internal retry method for just the LLM call
+        response_msg = self.call_llm_with_retry(self.final_prompt)
+        final_response = response_msg.content
         
         return final_response
     
