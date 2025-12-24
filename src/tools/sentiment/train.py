@@ -15,7 +15,12 @@ class SentimentTrainer:
     def __init__(self):
         self.root_dir = Path(__file__).resolve().parent.parent.parent.parent
         self.sentiment_data_path = self.root_dir / "data" / "databases" / "sentiment.csv"
-        self.model_dir = self.root_dir / "data" / "datasets" / "models"
+        
+        if Path("/data").exists():
+            self.model_dir = Path("/data/models")
+        else:
+            self.model_dir = self.root_dir / "data" / "datasets" / "models"
+            
         self.model_path = self.model_dir / "sentiment_pipeline.pkl"
         self.encoder_path = self.model_dir / "sentiment_label_encoder.pkl"
 

@@ -20,4 +20,4 @@ pandas
 tabulate
 scikit-learn
 redis
-langgraph
+langgraphpydantic-settings

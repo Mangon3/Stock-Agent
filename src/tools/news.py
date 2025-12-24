@@ -24,13 +24,23 @@ class NewsFetcher:
             
         # Sentiment model paths
         self.root_dir = Path(__file__).resolve().parent.parent.parent
-        self.model_dir = self.root_dir / "data" / "datasets" / "models"
+        
+        if Path("/data").exists():
+            self.model_dir = Path("/data/models")
+        else:
+            self.model_dir = self.root_dir / "data" / "datasets" / "models"
+
         self.model_path = self.model_dir / "sentiment_pipeline.pkl"
         self.encoder_path = self.model_dir / "sentiment_label_encoder.pkl"
         
         self.pipeline = None
         self.label_encoder = None
-        self._load_model()
+        
+        if not self.model_path.exists() or not self.encoder_path.exists():
+            logger.info(f"Sentiment model missing at {self.model_path}. Initiating auto-training...")
+            self.train_model()
+        else:
+            self._load_model()
 
     def _load_model(self):
         """Attempts to assign self.pipeline and self.label_encoder if files exist."""
@@ -155,6 +165,11 @@ class NewsFetcher:
             return [{"error": f"Failed to retrieve news due to unexpected issue: {e}"}]
 
 news_fetcher = NewsFetcher()
+
+
+
+
+# TEST FUNCTION
 
 
 if __name__ == "__main__":

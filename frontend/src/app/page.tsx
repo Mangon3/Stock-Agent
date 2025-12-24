@@ -36,7 +36,8 @@ export default function Home() {
     setData(null);
 
     try {
-      const response = await fetch('https://mangonnn-stock-agent.hf.space/analyze', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mangonnn-stock-agent.hf.space';
+      const response = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
