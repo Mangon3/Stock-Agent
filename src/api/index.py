@@ -69,89 +69,13 @@ async def analyze_stock(
 
         # Instantiate PER-REQUEST Agent
         current_agent = Agent(api_key=api_key)
-        agent_executor = current_agent.get_executor()
-
         symbol = request.symbol.upper()
-        timeframe = request.timeframe_days
-        
-        # Default query if none provided
-        rag_query = request.query
-        if not rag_query:
-            rag_query = f"Analyze the macro outlook for {symbol} based on the last {timeframe} days of news."
-
-        # === Step 1: Macro Analysis (RAG) ===
-        valid_rag_function = get_rag_function_closure(current_agent, rag_query, symbol, timeframe)
-        
-        macro_response_dict = cache_manager.invoke_with_cache(
-            worker_function=valid_rag_function,
-            input_query=rag_query,
-            symbol=symbol,
-            timeframe_days=timeframe
-        )
-        macro_analysis_text = macro_response_dict["output"]
-
-        # === Step 2: Micro Analysis (Model) ===
-        micro_query = f"Please retrain the prediction model for {symbol} using the default parameters."
-        
-        # Invoke LangGraph with system prompt
-        from langchain_core.messages import HumanMessage, SystemMessage
-        graph_input = {
-            "messages": [
-                SystemMessage(content=f"""
-                You are a stock analysis engine. 
-                Step 1: Call the 'micro_analysis' tool for symbol {symbol} immediately.
-                Step 2: DATA RETURNED: Once the tool returns data, you MUST NOT call the tool again. 
-                Step 3: FINAL OUTPUT: Output the exact JSON data returned by the tool as your final response. 
-                DO NOT loop. DO NOT ask questions. Call tool -> Output JSON -> STOP.
-                """),
-                HumanMessage(content=f"Analyze {symbol} now.")
-            ]
-        }
-        
-        logger.info("DEBUG: About to invoke LangGraph executor.")
-        try:
-            micro_response = agent_executor.invoke(graph_input)
-            if "messages" not in micro_response:
-                 logger.error(f"Unexpected response format from graph: {micro_response.keys()}")
-                 raise ValueError("Graph did not return messages.")
-        except Exception as e:
-            logger.error(f"DEBUG: LangGraph executor failed: {e}")
-            raise
-        
-        last_message = micro_response["messages"][-1]
-        micro_output = last_message.content
-        
-        if isinstance(micro_output, list):
-            text_parts = [block.get('text', '') for block in micro_output if isinstance(block, dict) and block.get('type') == 'text']
-            micro_output = "\n".join(text_parts)
-            if not micro_output:
-                micro_output = str(last_message.content)
-        
-        try:
-            if isinstance(micro_output, str):
-                try:
-                    micro_analysis_data = json.loads(micro_output)
-                except json.JSONDecodeError:
-                    micro_analysis_data = {"result_summary": micro_output}
-            else:
-                micro_analysis_data = {"raw_output": str(micro_output)}
-
-        except Exception as e:
-            logger.error(f"Error parsing micro analysis: {e}")
-
-            micro_analysis_data = {"error": "Failed to parse micro model output", "details": str(e)}
-
-        # === Step 3: Synthesis ===
-        final_report = current_agent.synthesize_final_report(
-            original_query=rag_query,
-            macro_analysis=macro_analysis_text,
-            micro_analysis_data=micro_analysis_data
-        )
+        final_report = current_agent.run_analysis(symbol)
 
         return AnalyzeResponse(
             symbol=symbol,
-            macro_analysis=macro_analysis_text,
-            micro_analysis=micro_analysis_data,
+            macro_analysis="See Final Report", # Legacy field
+            micro_analysis={"status": "completed"}, # Legacy field
             final_report=final_report
         )
 
