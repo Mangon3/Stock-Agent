@@ -21,7 +21,7 @@ class StockAnalysisPipeline:
     def __init__(self, llm: ChatGoogleGenerativeAI):
         self.llm = llm
 
-    def run_analysis(self, symbol: str) -> str:
+    def run_analysis(self, symbol: str) -> Dict[str, Any]:
         logger.info(f"--- STARTING PIPELINE ANALYSIS FOR {symbol} ---")
         
         # --- Step 1: Macro News Analysis ---
@@ -63,7 +63,12 @@ class StockAnalysisPipeline:
         )
         
         logger.info(f"--- PIPELINE COMPLETE FOR {symbol} ---")
-        return final_report
+        
+        return {
+            "macro_analysis": macro_analysis_text,
+            "micro_analysis": micro_data,
+            "final_report": final_report
+        }
 
     def _synthesize_report(self, symbol: str, macro_text: str, micro_data: Dict[str, Any]) -> str:
         

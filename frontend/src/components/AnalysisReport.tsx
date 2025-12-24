@@ -5,20 +5,14 @@ import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
 interface AnalysisData {
   symbol: string;
   final_report: string;
-  micro_analysis: {
-    result_summary: string;
-    signal?: string;
-    confidence?: number;
-  };
+  micro_analysis?: any; // Relaxed type for legacy support
 }
 
 export function AnalysisReport({ data }: { data: AnalysisData }) {
-  // Extract signal if available
-  const isBullish = data.final_report.toLowerCase().includes("bullish") || 
-                    data.micro_analysis.result_summary.toLowerCase().includes("bullish");
-  
-  const isBearish = data.final_report.toLowerCase().includes("bearish") || 
-                    data.micro_analysis.result_summary.toLowerCase().includes("bearish");
+  // Extract signal if available (fallback to safely checking final_report)
+  const reportLower = data.final_report.toLowerCase();
+  const isBullish = reportLower.includes("bullish") || reportLower.includes("strong buy");
+  const isBearish = reportLower.includes("bearish") || reportLower.includes("sell");
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-in slide-in-from-bottom-5 duration-700">
@@ -57,7 +51,7 @@ export function AnalysisReport({ data }: { data: AnalysisData }) {
                 <Activity className="w-4 h-4 mr-2" /> Micro-Model
               </h3>
               <p className="text-sm text-gray-300 leading-relaxed">
-                {data.micro_analysis.result_summary}
+                {data.micro_analysis?.result_summary || "Technical indicators have been integrated into the main report."}
               </p>
            </div>
         </div>
