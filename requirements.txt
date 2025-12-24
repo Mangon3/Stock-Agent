@@ -5,6 +5,7 @@ pydantic-settings
 python-dotenv
 SQLAlchemy
 psycopg2-binary
+langgraph
 langchain>=0.3.0
 langchain-community>=0.3.0
 langchain-core>=0.3.0
@@ -20,4 +21,4 @@ pandas
 tabulate
 scikit-learn
 redis
-langgraphpydantic-settings
+
