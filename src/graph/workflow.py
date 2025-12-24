@@ -14,8 +14,7 @@ model = ChatGoogleGenerativeAI(
     max_retries=0
 )
 
-# Bind tools to model with forced tool usage
-model_with_tools = model.bind_tools(tools, tool_choice="any")
+model_with_tools = model.bind_tools(tools)
 
 # Define Logic
 def agent_node(state):
