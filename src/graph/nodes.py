@@ -20,10 +20,17 @@ def call_model(state: AgentState, model):
         response = model.invoke(messages)
     except Exception as e:
         error_msg = str(e).lower()
-        if "output text or tool calls" in error_msg or "cannot both be empty" in error_msg or "429" in error_msg:
+        if ("429" in error_msg or 
+            "resource_exhausted" in error_msg or 
+            "quota" in error_msg):
+             logger.warning(f"Rate limit hit ({e}). Raising to trigger robust retry...")
+             raise # Re-raise to let @retry_with_backoff handle it
+
+        if "output text or tool calls" in error_msg or "cannot both be empty" in error_msg:
              logger.warning(f"Model failed with expected error: {e}. Preparing fallback...")
              response = None
         else:
+
              logger.error(f"DEBUG: Model invocation failed with critical error: {e}")
              raise
 
