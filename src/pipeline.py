@@ -12,10 +12,9 @@ logger = setup_logger(__name__)
 
 class StockAnalysisPipeline:
     """
-    A unified, linear pipeline that guarantees execution of both:
-    1. Macro News Analysis (Qualitative)
-    2. Micro Model Training & Inference (Quantitative)
-    3. Final Synthesis (LLM Report)
+    1. Macro News Analysis
+    2. Micro Model Training & Inference
+    3. Final Synthesis
     """
 
     def __init__(self, llm: ChatGoogleGenerativeAI):
@@ -64,11 +63,7 @@ class StockAnalysisPipeline:
         
         logger.info(f"--- PIPELINE COMPLETE FOR {symbol} ---")
         
-        return {
-            "macro_analysis": macro_analysis_text,
-            "micro_analysis": micro_data,
-            "final_report": final_report
-        }
+        return final_report
 
     def _synthesize_report(self, symbol: str, macro_text: str, micro_data: Dict[str, Any]) -> str:
         
