@@ -7,10 +7,8 @@ from langchain_core.messages import HumanMessage
 
 
 from src.config.settings import settings
-from src.graph.workflow import create_workflow
 from src.utils.retry import retry_with_backoff
-from src.tools.registry import get_recent_news
-from src.rag.core import rag_system
+from src.pipeline import StockAnalysisPipeline
 
 class Agent:
     
@@ -24,116 +22,24 @@ class Agent:
             temperature=0.2,
             max_retries=0
         )
-        
-        # Create per-user graph
-        self.graph = create_workflow(self.llm)
-        self.agent_executor = self.graph 
+        self.pipeline = StockAnalysisPipeline(self.llm)
 
-    def get_executor(self):
-        return self.agent_executor
-
-
-    @retry_with_backoff(max_retries=5)
-    def call_llm_with_retry(self, prompt):
-        return self.llm.invoke(prompt)
-
-    # Removed blanket retry decorator to prevent re-running news/embeddings on LLM rate limit
-    def run_rag_pipeline(
-        self,
-        query,
-        symbol
-    ) -> str:
-        
-        global TEST_TIMEFRAME
-        
-        try:
-            timeframe = TEST_TIMEFRAME 
-        except NameError:
-             timeframe = 7
-            
-        try:
-            self.raw_news_data = get_recent_news.func(
-                symbol=symbol,
-                timeframe_days=timeframe
-            )
-            if isinstance(self.raw_news_data, list) and len(self.raw_news_data) > 0:
-                 if "error" in self.raw_news_data[0]:
-                     return f"Error from news tool: {self.raw_news_data[0]['error']}"
-                 if "warning" in self.raw_news_data[0]:
-                     pass
-            elif isinstance(self.raw_news_data, str) and self.raw_news_data.startswith("Error"):
-                 return self.raw_news_data
-        except Exception as e:
-            return f"Error: News fetching tool failed: {e}"
-            
-        if not isinstance(self.raw_news_data, list) or not self.raw_news_data:
-            return f"Error: News fetching tool returned empty or invalid data structure for symbol {symbol}."
-        
-        
-        rag_system.ingest_news_documents(self.raw_news_data)
-
-        self.context, self.sources = rag_system.retrieve_context(query)
-
-        self.final_system_prompt = (
-            "You are a world-class Macro Financial News Analyst AI. Your response MUST be "
-            "strictly based on the 'CONTEXT' provided below. Do not use external knowledge or invent facts. "
-            "Cite the original source of the information (e.g., '[Source: Reuters]').\n\n"
-            "--- CONTEXT ---\n"
-            f"{self.context}\n"
-            "---------------\n"
-        )
-        
-        self.final_prompt = [
-            SystemMessage(content=self.final_system_prompt),
-            HumanMessage(content=query)
-        ]
-        
-        # Use the internal retry method for just the LLM call
-        response_msg = self.call_llm_with_retry(self.final_prompt)
-        final_response = response_msg.content
-        
-        return final_response
-    
-    @retry_with_backoff(max_retries=5)
-    def synthesize_final_report(self, original_query: str, macro_analysis: str, micro_analysis_data: Dict[str, Any]) -> str:
+    @retry_with_backoff(max_retries=3)
+    def run_analysis(self, symbol: str) -> str:
         """
-        Runs a final LLM call to synthesize the macro (news) and micro (model) results 
-        into a single, coherent investment report.
+        Delegates the full analysis to the unified pipeline.
+        This includes Macro (News), Micro (Model), and Synthesis.
         """
-        
-        micro_analysis_json_str = json.dumps(micro_analysis_data, indent=2)
-        
-        synthesis_prompt = (
-            "You are a Senior Investment Analyst. Your task is to combine the results from a Macro News Analysis "
-            "and a Micro Prediction Model into a single, cohesive, and actionable investment report. "
-            "Follow the thought process outlined below to generate the FINAL REPORT."
-            "\n\n"
-            "*** THOUGHT PROCESS ***\n\n"
-            "1. **Macro Analysis (Sentiment):** Summarize the key drivers and risks identified in the Macro News Analysis. Determine the overall sentiment (Bullish/Bearish/Neutral) based on this news context."
-            "\n"
-            "2. **Micro Analysis (Technical):** Extract the following key metrics from the Micro Model Data: Latest Close Price, Model Signal, Confidence Level. Summarize what the model is predicting."
-            "\n"
-            "3. **Synthesis & Conclusion:** Compare the Macro Sentiment (from news) with the Micro Signal (from model). Are they aligned, or are they contradictory? State the final, combined investment thesis and outlook for the stock."
-            "\n\n"
-            "*** INPUT DATA ***\n"
-            f"ORIGINAL USER QUERY: {original_query}\n\n"
-            "--- MACRO NEWS ANALYSIS (Qualitative) ---\n"
-            f"{macro_analysis}\n\n"
-            "--- MICRO MODEL DATA (Quantitative) ---\n"
-            f"{micro_analysis_json_str}\n\n"
-            "*** FINAL REPORT ***\n"
-        )
-        
-        self.final_prompt = [
-            SystemMessage(content=synthesis_prompt),
-            HumanMessage(content="Generate the comprehensive investment report based on the combined analysis.")
-        ]
-        
-        final_response = self.llm.invoke(self.final_prompt).content
-        return final_response
+        return self.pipeline.run_analysis(symbol)
 
 
-if __name__ == "__main__": # TEST FUNCTION
+
+
+
+# TEST FUNCTION
+
+
+if __name__ == "__main__": 
     pass
     global TEST_TIMEFRAME
     
