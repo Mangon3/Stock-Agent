@@ -67,6 +67,3 @@ class SentimentTrainer:
         return self.train()
 
 trainer = SentimentTrainer()
-
-if __name__ == "__main__":
-    trainer()
