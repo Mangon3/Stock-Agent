@@ -15,7 +15,7 @@ logger = setup_logger(__name__)
 
 from src.config.settings import settings
 from src.tools.model.data import tv_data_fetcher
-from src.tools.model.neural import GRU_StockNet
+from src.tools.model.neural import LSTM_StockNet
 from src.tools.model.feature import FeatureCalculator
 from src.utils.device import get_device
 
@@ -232,7 +232,7 @@ class StockModelTrainer:
                  raise RuntimeError(f"Feature count mismatch! Expected {settings.INPUT_SIZE}, got {train_dataset.X.shape[2]}.")
 
             # 2. Initialize Model and Optimizers
-            model = GRU_StockNet(
+            model = LSTM_StockNet(
                 input_size=settings.INPUT_SIZE,
                 hidden_dim=settings.HIDDEN_DIM,
                 num_layers=settings.NUM_LAYERS,
