@@ -1,3 +1,4 @@
+# Dockerfile for Stock Agent (Rebuild Trigger 1)
 FROM python:3.11-slim
 
 WORKDIR /app
