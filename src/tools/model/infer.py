@@ -5,7 +5,7 @@ from typing import Dict, Any, Tuple
 
 from src.config.settings import settings
 from src.tools.model.data import tv_data_fetcher
-from src.tools.model.neural import GRU_StockNet
+from src.tools.model.neural import LSTM_StockNet
 from src.tools.model.feature import features
 from src.utils.device import get_device
 
@@ -35,12 +35,12 @@ class MicroModelPredictor:
         self.data_fetcher = tv_data_fetcher 
         pass
 
-    def _load_model(self) -> GRU_StockNet:
+    def _load_model(self) -> LSTM_StockNet:
         if not settings.MODEL_PATH.exists():
             # If the model doesn't exist, we must raise an error to indicate training is required
             raise FileNotFoundError(f"Trained model file not found at: {settings.MODEL_PATH}. Please run training first.")
 
-        model = GRU_StockNet(
+        model = LSTM_StockNet(
             input_size=settings.INPUT_SIZE,
             hidden_dim=settings.HIDDEN_DIM,
             num_layers=settings.NUM_LAYERS,

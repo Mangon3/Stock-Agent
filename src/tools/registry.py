@@ -33,7 +33,7 @@ def micro_analysis(
     """
     Initiates the micro-model training pipeline on the specified stock symbol. 
     It fetches historical data, calculates technical features, and trains 
-    a GRU neural network model for prediction. 
+    a LSTM neural network model for prediction. 
     
     Use this tool when the user asks to 'train the model', 'retrain the micro-model', 
     or 'update the prediction model'.
