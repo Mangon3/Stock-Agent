@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from src.tools.sentiment.train import SentimentTrainer
 from src.utils.logger import setup_logger
+from datetime import datetime, timedelta
 
 
 logger = setup_logger(__name__)
@@ -83,7 +84,7 @@ class NewsFetcher:
             logger.error("Finnhub client is not initialized.")
             return [{"error": "Finnhub client not initialized."}]
 
-        end_date = datetime.now()
+        end_date = datetime.datetime.now()
         start_date = end_date - timedelta(days=timeframe_days)
         
         to_timestamp = end_date.strftime("%Y-%m-%d")
