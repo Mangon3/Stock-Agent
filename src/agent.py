@@ -9,6 +9,8 @@ from langchain_core.messages import HumanMessage
 from src.config.settings import settings
 from src.graph.workflow import create_workflow
 from src.utils.retry import retry_with_backoff
+from src.tools.registry import get_recent_news
+from src.rag.core import rag_system
 
 class Agent:
     
