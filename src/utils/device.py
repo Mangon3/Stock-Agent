@@ -24,8 +24,10 @@ def get_device(device_id: int = 0) -> torch.device:
             device = torch.device(f"xpu:{device_id}")
             logger.info(f"Device detected: Intel XPU ({torch.xpu.get_device_name(device_id)})")
             return device
+    except ImportError:
+        pass
     except Exception as e:
-        logger.warning(f"Failed to import intel_extension_for_pytorch: {e}")
+        logger.error(f"IPEX check failed with unexpected error: {e}")
         pass
     
     logger.info("Device detected: CPU")
