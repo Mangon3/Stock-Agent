@@ -83,8 +83,8 @@ async def analyze_stock(request: AnalyzeRequest):
         from langchain_core.messages import HumanMessage, SystemMessage
         graph_input = {
             "messages": [
-                SystemMessage(content="You are a financial analysis assistant. You have access to a micro_analysis tool that trains and runs a GRU neural network for stock price prediction. When asked to analyze or predict a stock, use the micro_analysis tool with the stock symbol."),
-                HumanMessage(content=micro_query)
+                SystemMessage(content=f"You are a stock analysis engine. Your ONLY job is to call the 'micro_analysis' tool. When you receive a stock symbol, you MUST call 'micro_analysis' with that symbol immediately. Do not ask for clarification. Do not output text. Just call the tool. Symbol: {symbol}"),
+                HumanMessage(content=f"Analyze {symbol} now.")
             ]
         }
         
