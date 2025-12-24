@@ -7,6 +7,7 @@ SQLAlchemy
 psycopg2-binary
 langchain
 langchain-community
+langchain-core
 langchain-google-genai
 google-api-core
 langchain-classic
