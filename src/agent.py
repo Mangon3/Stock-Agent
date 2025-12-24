@@ -7,24 +7,12 @@ from langchain_core.messages import HumanMessage
 
 
 from src.config.settings import settings
-from src.graph.workflow import app as graph_app
-from src.tools.registry import get_recent_news, micro_analysis
-from src.app.persistence import cache_manager 
-from src.utils.json_parser import parse_agent_output 
-from src.rag.core import rag_system
-from src.tools.news import news_fetcher
-from src.tools.micro import micro_model
-from src.utils.retry import retry_with_backoff
-from src.utils.logger import setup_logger
-
-logger = setup_logger(__name__)
-
-
+from src.graph.workflow import create_workflow
 
 class Agent:
     
-    def __init__(self):
-        self.GEMINI_API_KEY = settings.GOOGLE_API_KEY
+    def __init__(self, api_key: str):
+        self.GEMINI_API_KEY = api_key
         self.AGENT_MODEL = settings.MODEL
         
         self.llm = ChatGoogleGenerativeAI(
@@ -34,11 +22,13 @@ class Agent:
             max_retries=0
         )
         
-    def exec_agent(self):
-        """
-        Returns the compiled LangGraph application.
-        """
-        return graph_app, self.llm
+        # Create per-user graph
+        self.graph = create_workflow(self.llm)
+        self.agent_executor = self.graph 
+
+    def get_executor(self):
+        return self.agent_executor
+
 
     @retry_with_backoff(max_retries=5)
     def call_llm_with_retry(self, prompt):
@@ -140,11 +130,8 @@ class Agent:
         return final_response
 
 
-agent = Agent()
-
-
-
 if __name__ == "__main__": # TEST FUNCTION
+    pass
     global TEST_TIMEFRAME
     
     agent_executor, llm = agent.exec_agent()

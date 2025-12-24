@@ -1,11 +1,11 @@
-import json
-from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException
+from typing import Optional, Dict, Any, Annotated
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 
-from src.agent import agent
+from src.agent import Agent
 from src.app.persistence import cache_manager
 from src.utils.logger import setup_logger
+from src.config.settings import settings
 
 logger = setup_logger(__name__)
 
@@ -16,8 +16,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
-agent_executor, llm = agent.exec_agent()
 
 class AnalyzeRequest(BaseModel):
     symbol: str
@@ -39,12 +37,12 @@ class AnalyzeResponse(BaseModel):
     micro_analysis: Dict[str, Any]
     final_report: str
 
-def get_rag_function_closure(query: str, symbol: str, timeframe: int):
+def get_rag_function_closure(agent_instance: Agent, query: str, symbol: str, timeframe: int):
     """
     Helper to create the worker function for cache invocation.
     """
     def rag_function_for_cache():
-        return agent.run_rag_pipeline(query, symbol)
+        return agent_instance.run_rag_pipeline(query, symbol)
     return rag_function_for_cache
 
 @app.get("/")
@@ -52,11 +50,27 @@ async def root():
     return {"message": "StockAgent API is running. Use /analyze to generate reports."}
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_stock(request: AnalyzeRequest):
+async def analyze_stock(
+    request: AnalyzeRequest,
+    x_gemini_api_key: Annotated[str | None, Header()] = None
+):
     """
     Full pipeline analysis: Macro (News/RAG) + Micro (Model) + Synthesis.
+    Accepts optional X-Gemini-API-Key header.
     """
     try:
+        # Determine API Key logic
+        api_key = x_gemini_api_key
+        if not api_key:
+            api_key = settings.GOOGLE_API_KEY
+            
+        if not api_key:
+            raise HTTPException(status_code=401, detail="Missing API Key. Provide 'X-Gemini-API-Key' header.")
+
+        # Instantiate PER-REQUEST Agent
+        current_agent = Agent(api_key=api_key)
+        agent_executor = current_agent.get_executor()
+
         symbol = request.symbol.upper()
         timeframe = request.timeframe_days
         
@@ -66,7 +80,7 @@ async def analyze_stock(request: AnalyzeRequest):
             rag_query = f"Analyze the macro outlook for {symbol} based on the last {timeframe} days of news."
 
         # === Step 1: Macro Analysis (RAG) ===
-        valid_rag_function = get_rag_function_closure(rag_query, symbol, timeframe)
+        valid_rag_function = get_rag_function_closure(current_agent, rag_query, symbol, timeframe)
         
         macro_response_dict = cache_manager.invoke_with_cache(
             worker_function=valid_rag_function,
@@ -122,7 +136,7 @@ async def analyze_stock(request: AnalyzeRequest):
             micro_analysis_data = {"error": "Failed to parse micro model output", "details": str(e)}
 
         # === Step 3: Synthesis ===
-        final_report = agent.synthesize_final_report(
+        final_report = current_agent.synthesize_final_report(
             original_query=rag_query,
             macro_analysis=macro_analysis_text,
             micro_analysis_data=micro_analysis_data
@@ -135,8 +149,11 @@ async def analyze_stock(request: AnalyzeRequest):
             final_report=final_report
         )
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         import traceback
         traceback.print_exc()
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
