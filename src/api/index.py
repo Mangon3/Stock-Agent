@@ -97,7 +97,13 @@ async def analyze_stock(
         from langchain_core.messages import HumanMessage, SystemMessage
         graph_input = {
             "messages": [
-                SystemMessage(content=f"You are a stock analysis engine. Your ONLY job is to call the 'micro_analysis' tool. When you receive a stock symbol, you MUST call 'micro_analysis' with that symbol immediately. Do not ask for clarification. Do not output text. Just call the tool. Symbol: {symbol}"),
+                SystemMessage(content=f"""
+                You are a stock analysis engine. 
+                Step 1: Call the 'micro_analysis' tool for symbol {symbol} immediately.
+                Step 2: DATA RETURNED: Once the tool returns data, you MUST NOT call the tool again. 
+                Step 3: FINAL OUTPUT: Output the exact JSON data returned by the tool as your final response. 
+                DO NOT loop. DO NOT ask questions. Call tool -> Output JSON -> STOP.
+                """),
                 HumanMessage(content=f"Analyze {symbol} now.")
             ]
         }
