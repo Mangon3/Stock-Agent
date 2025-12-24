@@ -79,9 +79,14 @@ async def analyze_stock(request: AnalyzeRequest):
         # === Step 2: Micro Analysis (Model) ===
         micro_query = f"Please retrain the prediction model for {symbol} using the default parameters."
         
-        # Invoke LangGraph
-        from langchain_core.messages import HumanMessage
-        graph_input = {"messages": [HumanMessage(content=micro_query)]}
+        # Invoke LangGraph with system prompt
+        from langchain_core.messages import HumanMessage, SystemMessage
+        graph_input = {
+            "messages": [
+                SystemMessage(content="You are a financial analysis assistant. You have access to a micro_analysis tool that trains and runs a GRU neural network for stock price prediction. When asked to analyze or predict a stock, use the micro_analysis tool with the stock symbol."),
+                HumanMessage(content=micro_query)
+            ]
+        }
         
         logger.info("DEBUG: About to invoke LangGraph executor.")
         try:
