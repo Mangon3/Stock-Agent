@@ -19,6 +19,36 @@ def call_model(state: AgentState, model):
     try:
         response = model.invoke(messages)
         logger.info(f"DEBUG: Model invocation successful. Output: {response.content}")
+        
+        if not response.tool_calls and not response.content:
+            logger.warning("Empty response from model! Attempting heuristic fallback...")
+            
+            # Check if likely asking for micro analysis (based on last message)
+            last_msg = messages[-1].content
+            if "retrain" in last_msg or "analyze" in last_msg:
+                 import re
+                 match = re.search(r"for\s+([A-Z]+)", last_msg)
+                 if match:
+                     symbol = match.group(1)
+                     logger.info(f"Fallback: constructing manual tool call for {symbol}")
+
+                     from langchain_core.messages import AIMessage
+                     
+                     import uuid
+                     call_id = str(uuid.uuid4())
+                     
+                     manual_call = {
+                         "name": "micro_analysis",
+                         "args": {"symbol": symbol},
+                         "id": call_id,
+                         "type": "tool_call"
+                     }
+                     
+                     response = AIMessage(
+                         content="", 
+                         tool_calls=[manual_call]
+                     )
+        
         if response.tool_calls:
             logger.info(f"DEBUG: Tool calls: {response.tool_calls}")
         return {"messages": [response]}
