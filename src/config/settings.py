@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # Data Configuration
     REQUIRED_OHLCV_COLS: List[str] = ['open', 'high', 'low', 'close', 'volume', 'News_Sentiment_Score']
-    DATA_TIMEFRAME_DAYS: int = 90
+    DATA_TIMEFRAME_DAYS: int = 365
     
     @property
     def INPUT_SIZE(self) -> int:
