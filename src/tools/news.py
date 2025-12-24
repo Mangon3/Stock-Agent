@@ -22,7 +22,7 @@ class NewsFetcher:
         else:
             logger.warning("FINNHUB_API_KEY not found in environment.")
             
-        # Sentiment Model Paths
+        # Sentiment model paths
         self.root_dir = Path(__file__).resolve().parent.parent.parent
         self.model_dir = self.root_dir / "data" / "datasets" / "models"
         self.model_path = self.model_dir / "sentiment_pipeline.pkl"
@@ -84,7 +84,7 @@ class NewsFetcher:
             logger.error("Finnhub client is not initialized.")
             return [{"error": "Finnhub client not initialized."}]
 
-        end_date = datetime.datetime.now()
+        end_date = datetime.now()
         start_date = end_date - timedelta(days=timeframe_days)
         
         to_timestamp = end_date.strftime("%Y-%m-%d")

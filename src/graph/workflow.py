@@ -6,7 +6,6 @@ from src.graph.state import AgentState
 from src.graph.nodes import call_model
 from src.tools.registry import tools
 
-# Initialize Model
 model = ChatGoogleGenerativeAI(
     model=settings.MODEL,
     api_key=settings.GOOGLE_API_KEY,
@@ -16,18 +15,12 @@ model = ChatGoogleGenerativeAI(
 
 model_with_tools = model.bind_tools(tools)
 
-# Define Logic
 def agent_node(state):
     return call_model(state, model_with_tools)
 
-# Define Graph
 workflow = StateGraph(AgentState)
-
-# Add Nodes
 workflow.add_node("agent", agent_node)
 workflow.add_node("tools", ToolNode(tools))
-
-# Add Edges
 workflow.set_entry_point("agent")
 
 def should_continue(state):
@@ -48,5 +41,4 @@ workflow.add_conditional_edges(
 
 workflow.add_edge("tools", "agent")
 
-# Compile
 app = workflow.compile()
