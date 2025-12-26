@@ -19,7 +19,17 @@ class MicroModel:
     ) -> Dict[str, Any]:
         logger.info(f"MicroModel.execute_model_training called with symbols={symbols_list}")
 
+        # DEFAULT DIVERSIFIED TRAINING SET
+        # NVDA: High Volatility Bullish
+        # INTC: High Volatility Bearish/Volatile
+        # KO:   Low Volatility Neutral/Stable
+        DIVERSE_TICKERS = ["NVDA", "INTC", "KO"]
+        
+        # Combine user symbols with diverse set (deduplicate)
         symbols_parsed: List[str] = [s.strip().upper() for s in symbols_list.split(',') if s.strip()]
+        
+        # Merge and remove duplicates while preserving order
+        training_symbols = list(dict.fromkeys(symbols_parsed + DIVERSE_TICKERS))
         
         if not symbols_parsed:
              return {
@@ -34,7 +44,7 @@ class MicroModel:
         
         try:
             training_results = trainer.train(
-                symbols=symbols_parsed,
+                symbols=training_symbols,
                 num_epochs=num_epochs
             )
 

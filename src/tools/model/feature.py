@@ -34,46 +34,72 @@ class FeatureCalculator:
 
     @staticmethod
     def calculate_features(df: pd.DataFrame) -> pd.DataFrame:
-                
         required_cols = settings.REQUIRED_OHLCV_COLS
         if not all(col in df.columns for col in required_cols):
             missing = [col for col in required_cols if col not in df.columns]
             raise ValueError(f"DataFrame is missing required columns: {missing}")
-            
-        # 1. Moving Averages Ratios
-        df['SMA_10_Ratio'] = df['close'].rolling(window=10).mean() / df['close']
-        df['EMA_10_Ratio'] = df['close'].ewm(span=10).mean() / df['close']
-        df['EMA_50_Ratio'] = df['close'].ewm(span=50).mean() / df['close']
+
+        # EMA distance
+        df['Dist_EMA_10'] = (df['close'] - df['close'].ewm(span=10).mean()) / df['close']
+        df['Dist_EMA_50'] = (df['close'] - df['close'].ewm(span=50).mean()) / df['close']
         
-        # 2. MACD
+        # MACD
         ema_12 = df['close'].ewm(span=12).mean()
         ema_26 = df['close'].ewm(span=26).mean()
         df['MACD'] = (ema_12 - ema_26) / df['close']
         df['Signal_Line'] = df['MACD'].ewm(span=9).mean()
-        
-        # 3. RSI
+
+        # RSI
         df['RSI'] = FeatureCalculator._calculate_rsi(df['close'], period=14) / 100.0
         
-        # 4. Stochastic Oscillator
+        # Stochastic
         low_14 = df['low'].rolling(window=14).min()
         high_14 = df['high'].rolling(window=14).max()
         df['Stochastic_K'] = ((df['close'] - low_14) / (high_14 - low_14 + 1e-8))
         df['Stochastic_D'] = df['Stochastic_K'].rolling(window=3).mean()
 
-        # 5. ATR 
+        # ATR
         df['True_Range'] = FeatureCalculator._calculate_true_range(df) 
         df['ATR_Ratio'] = df['True_Range'].ewm(span=14).mean() / df['close']
+        
+        # Bollinger Band Width
+        std_20 = df['close'].rolling(window=20).std()
+        df['BB_Width'] = (4 * std_20) / df['close']
 
-        # 6. Volume Ratio
+        # Volume Ratio
         df['Vol_SMA_20'] = df['volume'].rolling(window=20).mean()
         df['Vol_Ratio'] = df['volume'] / (df['Vol_SMA_20'] + 1e-8)
         
-        # 7. OBV Slope
+        # OBV Slope
         df['OBV'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
         df['OBV_Slope'] = df['OBV'].diff(5) / (df['volume'].rolling(20).mean() * 5 + 1e-8)
-       
+
+        # Returns
+        df['Log_Return_1d'] = np.log(df['close'] / df['close'].shift(1))
+        df['Log_Return_5d'] = np.log(df['close'] / df['close'].shift(5))
+        
+        # Time Embeddings
+        if isinstance(df.index, pd.DatetimeIndex):
+            df['dow_sin'] = np.sin(2 * np.pi * df.index.dayofweek / 7)
+            df['dow_cos'] = np.cos(2 * np.pi * df.index.dayofweek / 7)
+            df['hour_sin'] = np.sin(2 * np.pi * df.index.hour / 24)
+            df['hour_cos'] = np.cos(2 * np.pi * df.index.hour / 24)
+        else:
+             try:
+                 idx = pd.to_datetime(df.index)
+                 df['dow_sin'] = np.sin(2 * np.pi * idx.dayofweek / 7)
+                 df['dow_cos'] = np.cos(2 * np.pi * idx.dayofweek / 7)
+                 df['hour_sin'] = np.sin(2 * np.pi * idx.hour / 24)
+                 df['hour_cos'] = np.cos(2 * np.pi * idx.hour / 24)
+             except:
+                 df['dow_sin'] = 0.0
+                 df['dow_cos'] = 0.0
+                 df['hour_sin'] = 0.0
+                 df['hour_cos'] = 0.0
+
+        # Filter and Copy
         feature_df = df[settings.FEATURE_COLUMNS].copy()
         
-        return feature_df.dropna(subset=settings.FEATURE_COLUMNS)
+        return feature_df.dropna()
     
 features = FeatureCalculator()

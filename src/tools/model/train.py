@@ -2,7 +2,9 @@ import torch
 torch.set_num_threads(1)
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -15,7 +17,7 @@ logger = setup_logger(__name__)
 
 from src.config.settings import settings
 from src.tools.model.data import tv_data_fetcher
-from src.tools.model.neural import LSTM_StockNet
+from src.tools.model.neural import HybridStockNet
 from src.tools.model.feature import FeatureCalculator
 from src.utils.device import get_device
 
@@ -42,13 +44,10 @@ class StockDataset(Dataset):
         if 'close' not in df.columns:
              raise ValueError("DataFrame must contain a 'close' column to calculate the target.")
 
-        # Binary classification target: 1 if next day's close > current day's close
-        df['target'] = (df['close'].shift(-1) > df['close']).astype(int)
+        df['target'] = np.log(df['close'].shift(-1) / df['close']) * 100.0
         
-        # Drop the last row where the target is NaN
         df = df.iloc[:-1]
         
-        # Ensure all features and the target are present and not NaN
         df = df.dropna(subset=feature_cols + ['target'])
         
         feature_data = df[feature_cols].values
@@ -56,7 +55,6 @@ class StockDataset(Dataset):
         
         for i in range(len(feature_data) - seq_len):
             seq = feature_data[i : (i + seq_len)]
-            # Target is the label corresponding to the *last day* in the sequence
             label = target_data[i + seq_len - 1] 
             X.append(seq)
             y.append(label)
@@ -67,13 +65,25 @@ class StockDataset(Dataset):
             
         return np.array(X), np.array(y)
 
+class DirectionalMSELoss(nn.Module):
+    def __init__(self, penalty_factor: float = 5.0):
+        super(DirectionalMSELoss, self).__init__()
+        self.mse = nn.MSELoss()
+        self.penalty_factor = penalty_factor
 
-# --- Model Trainer Class ---
+    def forward(self, pred, target):
+        loss_mse = self.mse(pred, target)
+        
+        # Penalize if signs mismatch (product is negative)
+        interaction = -1 * (pred * target)
+        directional_penalty = torch.relu(interaction).mean()
+        
+        total_loss = loss_mse + (self.penalty_factor * directional_penalty)
+        return total_loss
+
 
 class StockModelTrainer:
 
-    
-    # Default parameters, which can be overridden by the caller (micro.py tool)
     DEFAULT_SYMBOLS: List[str] = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
     DEFAULT_EPOCHS: int = 50
     DEFAULT_BATCH_SIZE: int = 32
@@ -85,46 +95,45 @@ class StockModelTrainer:
         self.best_test_accuracy = 0.0
         logger.info(f"Trainer initialized. Target device: {self.DEVICE}.")
 
-    def _train_test_split(self, X: np.ndarray, y: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Splits the combined data into training and testing sets."""
-        if len(X) != len(y):
-            raise ValueError("Feature array X and target array y must have the same length.")
-
-        test_size = int(len(X) * test_ratio)
-        
-        if test_size == 0 or test_size >= len(X):
-            logger.warning("Test size is too small or too large. Using default minimum split.")
-            test_size = max(1, min(len(X) // 5, len(X) - 1))
-
-        split_index = len(X) - test_size
-        
-        X_train, X_test = X[:split_index], X[split_index:]
-        y_train, y_test = y[:split_index], y[split_index:]
-
-        logger.info(f"Split data: Train samples={len(X_train)}, Test samples={len(X_test)}")
-        
-        return X_train, X_test, y_train, y_test
-
-
     def _load_and_prepare_data(self, symbols: List[str]) -> Tuple[StockDataset, StockDataset]:
-        """Fetches data, calculates features, and creates the final sequence datasets."""
+        """Fetches data, calculates features, and creates the final sequence datasets with temporal splitting."""
         
-        all_X, all_y = [], []
+        train_X_list, train_y_list = [], []
+        test_X_list, test_y_list = [], []
         
         logger.info(f"Starting data fetch and feature engineering for {len(symbols)} symbols...")
         
         for symbol in symbols:
             logger.info(f"Fetching data for {symbol}...")
             
+            # Fallback Logic for Exchange
             df_raw = tv_data_fetcher.fetch_historical_data(
                 symbol, 
                 timeframe_days=settings.DATA_TIMEFRAME_DAYS, 
                 exchange="NASDAQ"
             )
+            
+            # If NASDAQ failed, try NYSE
+            if isinstance(df_raw, dict) and "error" in df_raw:
+                logger.info(f"NASDAQ fetch failed for {symbol}, trying NYSE...")
+                df_raw = tv_data_fetcher.fetch_historical_data(
+                    symbol, 
+                    timeframe_days=settings.DATA_TIMEFRAME_DAYS, 
+                    exchange="NYSE"
+                )
+
+            # If NYSE failed, try BINANCE (for Crypto)
+            if isinstance(df_raw, dict) and "error" in df_raw:
+                logger.info(f"NYSE fetch failed for {symbol}, trying BINANCE...")
+                df_raw = tv_data_fetcher.fetch_historical_data(
+                    symbol, 
+                    timeframe_days=settings.DATA_TIMEFRAME_DAYS, 
+                    exchange="BINANCE"
+                )
 
             if isinstance(df_raw, dict) and "error" in df_raw:
-                logger.error(f"Skipping {symbol}: Data fetch failed: {df_raw['error']}")
-                time.sleep(random.uniform(1, 3)) # Shorter sleep for tool execution
+                logger.error(f"Skipping {symbol}: Data fetch failed on NASDAQ, NYSE, and BINANCE: {df_raw['error']}")
+                time.sleep(random.uniform(1, 3))
                 continue
                 
             try:
@@ -141,9 +150,21 @@ class StockModelTrainer:
                 )
                 
                 if X.size > 0:
-                    all_X.append(X)
-                    all_y.append(y)
-                    logger.info(f"Success for {symbol}: Created {X.shape[0]} sequences.")
+                    # Temporal Split PER SYMBOL to avoid leakage
+                    split_index = int(len(X) * (1 - self.TEST_SIZE_RATIO))
+                    # Ensure valid split (at least 1 sample in test if possible, but respect ratio)
+                    if split_index >= len(X): split_index = len(X) - 1
+                    if split_index <= 0: split_index = 1
+
+                    X_train, X_test = X[:split_index], X[split_index:]
+                    y_train, y_test = y[:split_index], y[split_index:]
+                    
+                    train_X_list.append(X_train)
+                    train_y_list.append(y_train)
+                    test_X_list.append(X_test)
+                    test_y_list.append(y_test)
+                    
+                    logger.info(f"Success for {symbol}: Created {len(X)} sequences (Train: {len(X_train)}, Test: {len(X_test)}).")
                 else:
                     logger.warning(f"Skipping {symbol}: Insufficient data after sequence creation.")
 
@@ -153,20 +174,22 @@ class StockModelTrainer:
                 logger.error(f"An unexpected error occurred for {symbol}: {str(e)}")
 
 
-        if not all_X:
+        if not train_X_list:
             raise RuntimeError("No training data could be generated for any symbol.")
 
-        X_combined = np.concatenate(all_X, axis=0)
-        y_combined = np.concatenate(all_y, axis=0)
+        # Combine all symbol data
+        X_train_combined = np.concatenate(train_X_list, axis=0)
+        y_train_combined = np.concatenate(train_y_list, axis=0)
+        
+        # Handle case where test set might be empty (though unlikely with proper split logic)
+        if test_X_list:
+            X_test_combined = np.concatenate(test_X_list, axis=0)
+            y_test_combined = np.concatenate(test_y_list, axis=0)
+        else:
+            X_test_combined = np.array([])
+            y_test_combined = np.array([])
 
-        # Split data and return PyTorch Datasets
-        X_train, X_test, y_train, y_test = self._train_test_split(
-            X_combined, 
-            y_combined, 
-            self.TEST_SIZE_RATIO
-        )
-            
-        return StockDataset(X_train, y_train), StockDataset(X_test, y_test)
+        return StockDataset(X_train_combined, y_train_combined), StockDataset(X_test_combined, y_test_combined)
 
 
     def _evaluate_model(self, model: nn.Module, dataloader: DataLoader) -> Tuple[float, float]:
@@ -176,25 +199,32 @@ class StockModelTrainer:
         correct_predictions = 0
         total_samples = 0
         
-        criterion = nn.BCEWithLogitsLoss()
+        # Use simple MSE for reporting
+        criterion_reg = nn.MSELoss()
         
         with torch.no_grad():
             for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.DEVICE), labels.to(self.DEVICE)
-                outputs = model(inputs)
                 
-                loss = criterion(outputs, labels)
+                # Multi-Task Output
+                price_pred, prob_pred = model(inputs)
+                
+                loss = criterion_reg(price_pred, labels)
                 running_loss += loss.item()
                 
-                probs = torch.sigmoid(outputs)
-                predictions = (probs > 0.5).float()
+                # Accuracy via Classification Head
+                target_sign = (labels > 0).float()
+                pred_sign = (prob_pred > 0.5).float()
                 
-                correct_predictions += (predictions == labels).sum().item()
+                correct_predictions += (pred_sign == target_sign).sum().item()
                 total_samples += labels.size(0)
         
         avg_loss = running_loss / len(dataloader)
-        accuracy = correct_predictions / total_samples
-        return avg_loss, accuracy
+        if total_samples > 0:
+            directional_accuracy = correct_predictions / total_samples
+        else:
+            directional_accuracy = 0.0
+        return avg_loss, directional_accuracy
 
 
     def train(self, symbols: List[str] = None, num_epochs: int = None, batch_size: int = None) -> Dict[str, Any]:
@@ -221,7 +251,7 @@ class StockModelTrainer:
             train_dataset, test_dataset = self._load_and_prepare_data(symbols)
             
             # Setup DataLoaders
-            train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+            train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
             test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
             
             logger.info(f"\nTotal training samples available: {len(train_dataset)}")
@@ -232,17 +262,23 @@ class StockModelTrainer:
                  raise RuntimeError(f"Feature count mismatch! Expected {settings.INPUT_SIZE}, got {train_dataset.X.shape[2]}.")
 
             # 2. Initialize Model and Optimizers
-            model = LSTM_StockNet(
+            model = HybridStockNet(
                 input_size=settings.INPUT_SIZE,
                 hidden_dim=settings.HIDDEN_DIM,
                 num_layers=settings.NUM_LAYERS,
                 dropout=settings.DROPOUT
             ).to(self.DEVICE)
             
-            criterion = nn.BCEWithLogitsLoss()
+
+            criterion_reg = DirectionalMSELoss(penalty_factor=5.0)
+            criterion_cls = nn.BCELoss()
             optimizer = optim.Adam(model.parameters(), lr=self.LEARNING_RATE)
+            scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
             self.best_test_accuracy = 0.0
+            best_test_loss = float('inf')
+            early_stop_counter = 0
+            patience = 12
 
             logger.info(f"Training started for {num_epochs} epochs on symbols: {', '.join(symbols)}")
             
@@ -256,8 +292,20 @@ class StockModelTrainer:
                     inputs, labels = inputs.to(self.DEVICE), labels.to(self.DEVICE)
 
                     optimizer.zero_grad()
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
+                    
+                    # Multi-Task Forward
+                    price_pred, prob_pred = model(inputs)
+                    
+                    # Targets
+                    target_price = labels
+                    target_prob = (labels > 0).float()
+                    
+                    # Losses
+                    loss_reg = criterion_reg(price_pred, target_price)
+                    loss_cls = criterion_cls(prob_pred, target_prob)
+                    
+                    # Combined Loss (0.5 weight for probability)
+                    loss = loss_reg + 0.5 * loss_cls
 
                     loss.backward()
                     optimizer.step()
@@ -278,6 +326,19 @@ class StockModelTrainer:
                     settings.MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
                     torch.save(model.state_dict(), settings.MODEL_PATH)
                     logger.info(f"--> Model saved! New BEST Test Accuracy: {self.best_test_accuracy:.4f}")
+                    
+                # Learning Rate Scheduler
+                scheduler.step(test_loss)
+                
+                # Early Stopping
+                if test_loss < best_test_loss:
+                    best_test_loss = test_loss
+                    early_stop_counter = 0
+                else:
+                    early_stop_counter += 1
+                    if early_stop_counter >= patience:
+                        logger.info(f"Early stopping triggered at epoch {epoch+1}")
+                        break
                 
             logger.info("Training complete.")
             

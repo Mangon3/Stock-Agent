@@ -1,11 +1,12 @@
 import torch
 torch.set_num_threads(1)
 import pandas as pd
+import numpy as np
 from typing import Dict, Any, Tuple
 
 from src.config.settings import settings
 from src.tools.model.data import tv_data_fetcher
-from src.tools.model.neural import LSTM_StockNet
+from src.tools.model.neural import HybridStockNet
 from src.tools.model.feature import features
 from src.utils.device import get_device
 
@@ -35,12 +36,12 @@ class MicroModelPredictor:
         self.data_fetcher = tv_data_fetcher 
         pass
 
-    def _load_model(self) -> LSTM_StockNet:
+    def _load_model(self) -> HybridStockNet:
         if not settings.MODEL_PATH.exists():
             # If the model doesn't exist, we must raise an error to indicate training is required
             raise FileNotFoundError(f"Trained model file not found at: {settings.MODEL_PATH}. Please run training first.")
 
-        model = LSTM_StockNet(
+        model = HybridStockNet(
             input_size=settings.INPUT_SIZE,
             hidden_dim=settings.HIDDEN_DIM,
             num_layers=settings.NUM_LAYERS,
@@ -56,7 +57,6 @@ class MicroModelPredictor:
         return model
 
     def _prepare_data_for_inference(self, df: pd.DataFrame) -> torch.Tensor:
-        # Assuming features.calculate_features is accessible and functional
         feature_df = features.calculate_features(df)
         
         if len(feature_df) < settings.SEQ_LEN:
@@ -87,17 +87,22 @@ class MicroModelPredictor:
             input_tensor = self._prepare_data_for_inference(df)
             
             with torch.no_grad():
-                logits = model(input_tensor) # Use the locally loaded model
-                probability = torch.sigmoid(logits).item()
+                price_pred, prob_pred = model(input_tensor)
+                predicted_percentage_return = price_pred.item()
+                predicted_log_return = predicted_percentage_return / 100.0
+                probability = prob_pred.item()
 
             signal, outlook_text = inference_results(probability)
             
             latest_price = df['close'].iloc[-1]
+            predicted_price = latest_price * np.exp(predicted_log_return)
 
             return {
                 "symbol": symbol.upper(),
                 "latest_close_price": float(f"{latest_price:.2f}"),
                 "model_output_probability": float(f"{probability:.4f}"),
+                "predicted_return": float(f"{predicted_log_return:.6f}"),
+                "predicted_next_close": float(f"{predicted_price:.2f}"),
                 "signal": signal,
                 "outlook": outlook_text,
                 "confidence_level": f"{abs(probability - 0.5) * 2 * 100:.1f}%"

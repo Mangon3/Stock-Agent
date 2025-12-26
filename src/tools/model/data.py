@@ -1,6 +1,7 @@
 import os
 import sys
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Union
 from datetime import datetime, timedelta
@@ -30,18 +31,29 @@ class TvDataFetcher:
                  logger.error(f"Failed to initialize TvDatafeed. {e}")
             return None
 
-    def fetch_historical_data(self, symbol: str, timeframe_days: int, exchange: str = "NASDAQ") -> Union[pd.DataFrame, Dict[str, str]]:
+    def fetch_historical_data(self, symbol: str, timeframe_days: int, exchange: str = "NASDAQ", interval: str = None) -> Union[pd.DataFrame, Dict[str, str]]:
         if self.tv is None:
             return {"error": "TvDatafeed is not initialized. Cannot fetch data."}
+            
+        # Determine Interval
+        # Default to settings if not provided
+        from src.config.settings import settings
+        interval_str = interval or settings.DATA_INTERVAL
+        
+        tv_interval = Interval.in_daily
+        if interval_str == "1h":
+            tv_interval = Interval.in_1_hour
+            n_bars = int(timeframe_days * 24)
+        else:
+            tv_interval = Interval.in_daily
+            n_bars = int(timeframe_days * 1.5)
 
         try:
-            n_bars = int(timeframe_days * 1.5)
-            
             # Request data
             data = self.tv.get_hist(
                 symbol=symbol,
                 exchange=exchange,
-                interval=Interval.in_daily,
+                interval=tv_interval,
                 n_bars=n_bars
             )
 
@@ -49,7 +61,13 @@ class TvDataFetcher:
                 return {"error": f"No historical data found for {symbol} on {exchange}."}
 
             data.columns = [col.lower() for col in data.columns]
-            data['News_Sentiment_Score'] = 0.5 
+            
+            # Sentiment signal injection
+            returns_5d = data['close'].pct_change(5).fillna(0)
+            proxy_sentiment = 1 / (1 + np.exp(-returns_5d * 10))
+            noise = np.random.normal(0, 0.05, len(data))
+            data['News_Sentiment_Score'] = (proxy_sentiment + noise).clip(0, 1)
+            
             data = data[['open', 'high', 'low', 'close', 'volume', 'News_Sentiment_Score']]
 
             return data

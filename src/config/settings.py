@@ -21,23 +21,27 @@ class Settings(BaseSettings):
     FINNHUB_API_KEY: Optional[str] = None
 
     # Model Parameters
-    SEQ_LEN: int = 30
-    HIDDEN_DIM: int = 64
+    SEQ_LEN: int = 10
+    HIDDEN_DIM: int = 32
     NUM_LAYERS: int = 2
-    DROPOUT: float = 0.2
+    DROPOUT: float = 0.1
     
     # Feature Configuration
     FEATURE_COLUMNS: List[str] = [
-        'SMA_10_Ratio', 'EMA_10_Ratio', 'EMA_50_Ratio', 
+        'Dist_EMA_10', 'Dist_EMA_50', 
         'MACD', 'Signal_Line', 'RSI', 
         'Stochastic_K', 'Stochastic_D',
-        'ATR_Ratio', 'Vol_Ratio', 'OBV_Slope', 
-        'News_Sentiment_Score' 
+        'ATR_Ratio', 'BB_Width', 'Vol_Ratio', 'OBV_Slope', 
+        'News_Sentiment_Score',
+        'Log_Return_1d', 'Log_Return_5d',
+        'dow_sin', 'dow_cos',
+        'hour_sin', 'hour_cos'
     ]
 
     # Data Configuration
     REQUIRED_OHLCV_COLS: List[str] = ['open', 'high', 'low', 'close', 'volume', 'News_Sentiment_Score']
-    DATA_TIMEFRAME_DAYS: int = 365
+    DATA_TIMEFRAME_DAYS: int = 730
+    DATA_INTERVAL: str = "1h"
     
     @property
     def INPUT_SIZE(self) -> int:
