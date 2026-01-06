@@ -45,37 +45,6 @@ A FastAPI-powered financial analysis platform leveraging LangGraph, Google Gemin
 }
 ```
 
-## Setup for Hugging Face Spaces
-
-### 1. Clone this Space
-```bash
-git clone https://huggingface.co/spaces/YOUR_USERNAME/stock-agent
-cd stock-agent
-```
-
-### 2. Configure Secrets
-
-In your Space's **Settings → Variables and Secrets**, add:
-
-| Secret Name | Value | Required |
-|-------------|-------|----------|
-| `GOOGLE_API_KEY` | Your Gemini API key | Yes |
-| `FINNHUB_API_KEY` | Your Finnhub API key | Yes |
-| `REDIS_URL` | Upstash Redis URL | Yes |
-| `MODEL` | `gemini-2.5-flash` | Optional |
-| `TEXT_EMBEDDING` | `text-embedding-004` | Optional |
-
-### 3. Get a Free Redis Instance (Upstash)
-
-1. Sign up at [upstash.com](https://upstash.com)
-2. Create a Redis database (Select **Free Tier**)
-3. Copy the `REDIS_URL` (looks like `redis://default:xxx@eu1-xxx.upstash.io:6379`)
-4. Add it to your Space secrets
-
-### 4. Push & Deploy
-
-The Space will auto-build and deploy when you push code.
-
 ## Local Development
 
 ### Prerequisites
@@ -119,14 +88,3 @@ docker-compose up
 - **Cache**: Redis
 - **ML**: PyTorch + scikit-learn
 
-## License
-
-MIT License - Open Source
-
-## Contributing
-
-Pull requests welcome! This project is open source.
-
----
-
-Built using Google Gemini and LangGraph
