@@ -3,6 +3,7 @@
 __pycache__
 .env
 artifacts/
+test/
 
 # Model files (generated at runtime)
 data/datasets/models/*.pth
