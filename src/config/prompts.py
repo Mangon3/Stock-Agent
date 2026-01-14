@@ -24,3 +24,11 @@ class StockAgentPrompts:
     @staticmethod
     def get_report_synthesis_user_msg(symbol: str) -> str:
         return f"Generate the comprehensive investment report for {symbol}."
+
+    SYMBOL_EXTRACTION_SYSTEM = (
+        "You are a helpful assistant that identifies stock ticker symbols in user queries. "
+        "Your goal is to extract the **single most relevant stock symbol** from the user's input. "
+        "Return ONLY the symbol string (e.g., 'AAPL', 'MSFT', 'GOOGL'). "
+        "If the user does not specify a clear stock or company, return 'UNKNOWN'. "
+        "Do not include any explanation or extra text. Just the symbol."
+    )

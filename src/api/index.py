@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, Annotated
 from fastapi import FastAPI, HTTPException, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent import Agent
 from src.app.persistence import cache_manager
@@ -16,7 +17,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,10 +28,16 @@ app.add_middleware(
 
 
 class AnalyzeRequest(BaseModel):
-    symbol: str
+    symbol: Optional[str] = None
     timeframe_days: Optional[int] = 7
     query: Optional[str] = None
     
+    @model_validator(mode='after')
+    def check_symbol_or_query(self) -> 'AnalyzeRequest':
+        if not self.symbol and not self.query:
+            raise ValueError('Either symbol or query must be provided.')
+        return self
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -46,14 +52,6 @@ class AnalyzeResponse(BaseModel):
     macro_analysis: str
     micro_analysis: Dict[str, Any]
     final_report: str
-
-def get_rag_function_closure(agent_instance: Agent, query: str, symbol: str, timeframe: int):
-    """
-    Helper to create the worker function for cache invocation.
-    """
-    def rag_function_for_cache():
-        return agent_instance.run_rag_pipeline(query, symbol)
-    return rag_function_for_cache
 
 @app.get("/")
 async def root():
@@ -79,7 +77,19 @@ async def analyze_stock(
 
         # Instantiate PER-REQUEST Agent
         current_agent = Agent(api_key=api_key)
-        symbol = request.symbol.upper()
+        
+        # Determine Symbol
+        symbol = request.symbol
+        if not symbol and request.query:
+            logger.info(f"Parsing symbol from query: {request.query}")
+            symbol = current_agent.parse_symbol(request.query)
+            
+            if symbol == "UNKNOWN":
+                raise HTTPException(status_code=422, detail="Could not identify a stock symbol from the query. Please mention a company or ticker.")
+        
+        symbol = symbol.upper()
+        
+        # Run Analysis
         final_report = current_agent.run_analysis(symbol)
 
         return AnalyzeResponse(
