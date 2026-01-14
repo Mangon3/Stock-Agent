@@ -57,7 +57,10 @@ class StockAgentPrompts:
         Example 1 (Specific Analysis): { "intent": "STOCK_QUERY", "symbol": "AAPL", "tools": ["macro"] }
         Example 2 (General Analysis): { "intent": "STOCK_QUERY", "symbol": "NVDA", "tools": ["macro", "micro"] }
         Example 3 (Chat): { "intent": "GENERAL_CHAT" }
-        Example 4 (Unknown): { "intent": "UNKNOWN" }
+        Example 4 (Context Resolution):
+           Input: "What about price?" (Context: "User: Analyze AAPL...")
+           Output: { "intent": "STOCK_QUERY", "symbol": "AAPL", "tools": ["micro"] }
+        Example 5 (Unknown): { "intent": "UNKNOWN" }
 
     """
 
