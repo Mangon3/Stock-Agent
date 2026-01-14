@@ -1,3 +1,7 @@
+import ReactMarkdown from 'react-markdown';
+import { User, Bot } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LoadingState } from '@/components/LoadingState';
 
 export interface Message {
   id: string;
