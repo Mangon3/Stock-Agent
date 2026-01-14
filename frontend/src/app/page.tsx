@@ -125,11 +125,7 @@ export default function Home() {
                   }
   
                   if (data.type === 'progress') {
-                    return {
-                      ...msg,
-                      loadingProgress: data.percent,
-                      loadingMessage: data.message
-                    };
+                    return msg;
                   }
   
                   if (data.type === 'result') {
