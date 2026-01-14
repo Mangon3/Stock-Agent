@@ -172,11 +172,11 @@ export default function Home() {
       {/* Input Area */}
       <div className="flex-none z-10 p-4 bg-black border-t border-gray-900">
         <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative flex items-center bg-black border border-gray-800 rounded-none p-1 focus-within:border-white transition-colors">
+          <form onSubmit={handleSubmit} className="relative flex items-center bg-black border border-gray-800 rounded-lg p-1 focus-within:border-white transition-colors">
             <input 
               type="text" 
               placeholder="COMMAND >>" 
-              className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-700 px-4 py-3 font-mono text-xs"
+              className="w-full bg-transparent border-none focus:ring-0 outline-none text-white placeholder-gray-700 px-4 py-3 font-mono text-xs"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}
@@ -184,7 +184,7 @@ export default function Home() {
             <button 
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="bg-white hover:bg-gray-200 text-black p-2 rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-white hover:bg-gray-200 text-black p-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
             </button>
