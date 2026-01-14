@@ -11,3 +11,5 @@ data/datasets/models/*.pkl
 
 # Vector stores (persistent on HF /data volume)
 data/vector_stores/
+.vercel
+.env*.local
