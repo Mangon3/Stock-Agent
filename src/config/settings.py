@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     DATA_TIMEFRAME_DAYS: int = 730
     DATA_INTERVAL: str = "1h"
 
+    # Memory
+    CONVERSATION_MEMORY_LIMIT: int = 10
+    VECTOR_STORE_PATH: str = "/data/vector_stores/conversation_history"
+
     # Descriptions
     API_DESCRIPTION: str = "API for StockAgent - Financial Analysis and Prediction"
     
