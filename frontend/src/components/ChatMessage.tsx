@@ -31,18 +31,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
       )}>
         {/* Avatar */}
         <div className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1",
-          isUser ? "bg-blue-600" : "bg-purple-600"
+          "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-1 border border-gray-800",
+          isUser ? "bg-white text-black" : "bg-black text-white"
         )}>
-          {isUser ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-white" />}
+          {isUser ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
         </div>
 
         {/* Bubble */}
         <div className={cn(
-          "rounded-2xl px-5 py-3 text-sm md:text-base shadow-md",
+          "rounded-md px-4 py-2 text-xs md:text-sm shadow-none",
           isUser 
-            ? "bg-blue-600 text-white rounded-tr-none" 
-            : "bg-gray-800 border border-gray-700 text-gray-100 rounded-tl-none w-full"
+            ? "bg-white text-black rounded-tr-none" 
+            : "bg-black border border-gray-800 text-gray-300 rounded-tl-none w-full"
         )}>
           
           {/* Loading State */}
@@ -50,7 +50,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
           {/* Text Content (if any) */}
           {message.content && (
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            <p className="whitespace-pre-wrap font-mono">{message.content}</p>
           )}
 
           {/* Analysis Report (if data exists) */}
