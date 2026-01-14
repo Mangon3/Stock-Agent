@@ -76,7 +76,8 @@ async def analyze_stock(
             stream_iterator = None
             
             if intent == "STOCK_QUERY" and symbol:
-                stream_iterator = current_agent.analyze(symbol.upper())
+                tools_to_use = intent_data.get('tools') if 'intent_data' in locals() else None
+                stream_iterator = current_agent.analyze(symbol.upper(), tools=tools_to_use)
             elif intent == "GENERAL_CHAT":
                 stream_iterator = current_agent.respond_conversational(request.query)
             else:

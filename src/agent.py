@@ -29,40 +29,48 @@ class Agent:
     # Note: Retries on a generator need care, but if the generator initialization fails, this helps.
     # Once yielding starts, retry won't verify mid-stream errors easily.
     @retry_with_backoff(max_retries=3)
-    def analyze(self, symbol: str) -> Generator[Dict[str, Any], None, None]:
+    def analyze(self, symbol: str, tools: List[str] = None) -> Generator[Dict[str, Any], None, None]:
         """
-        Delegates to pipeline stream.
+        Delegates to pipeline stream with selected tools.
         """
-        logger.info(f"Tool Selection: StockAnalysisPipeline for {symbol}")
-        yield from self.pipeline.run_analysis(symbol)
+        logger.info(f"Tool Selection: StockAnalysisPipeline for {symbol} with tools {tools}")
+        yield from self.pipeline.run_analysis(symbol, tools)
 
     @retry_with_backoff(max_retries=2)
-    def parse_intent(self, query: str) -> Dict[str, Optional[str]]:
+    def parse_intent(self, query: str) -> Dict[str, Any]:
         """
-        Classifies user intent. Synchronous.
+        Classifies user intent and plans tool usage.
+        Returns: { 'intent': str, 'symbol': str|None, 'tools': List[str] }
         """
         if not query:
-            return {'intent': 'UNKNOWN', 'symbol': None}
+            return {'intent': 'UNKNOWN', 'symbol': None, 'tools': []}
             
         messages = [
-            SystemMessage(content=StockAgentPrompts.SYMBOL_EXTRACTION_SYSTEM),
+            SystemMessage(content=StockAgentPrompts.PLANNING_SYSTEM_PROMPT),
             HumanMessage(content=f"User Query: {query}")
         ]
         
         response = self.llm.invoke(messages)
         content = response.content.strip()
         
-        # Cleanup
-        content = content.replace("'", "").replace('"', "").replace(".", "")
+        # Cleanup JSON if LLM wraps in backticks
+        if content.startswith("```"):
+            content = content.replace("```json", "").replace("```", "").strip()
+            
+        logger.info(f"Intent Planning Raw Output: {content}")
         
-        logger.info(f"Intent Classification Raw Output: {content}")
-        
-        if content == "CHAT":
-            return {'intent': 'GENERAL_CHAT', 'symbol': None}
-        elif content == "UNKNOWN":
-            return {'intent': 'UNKNOWN', 'symbol': None}
-        else:
-            return {'intent': 'STOCK_QUERY', 'symbol': content.upper()}
+        try:
+            plan = json.loads(content)
+            # Normalize defaults
+            if "tools" not in plan:
+                plan["tools"] = ["macro", "micro"]
+            if "symbol" in plan and plan["symbol"]:
+                plan["symbol"] = plan["symbol"].upper()
+                
+            return plan
+        except json.JSONDecodeError:
+            logger.error("Failed to parse planning JSON. Fallback to Unknown.")
+            return {'intent': 'UNKNOWN', 'symbol': None, 'tools': []}
 
     def respond_conversational(self, query: str) -> Generator[Dict[str, Any], None, None]:
         """

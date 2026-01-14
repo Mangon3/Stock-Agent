@@ -21,48 +21,58 @@ class StockAnalysisPipeline:
     def __init__(self, llm: ChatGoogleGenerativeAI):
         self.llm = llm
 
-    def run_analysis(self, symbol: str):  # -> Generator[Dict[str, Any], None, None]
-        logger.info(f"--- STARTING PIPELINE ANALYSIS FOR {symbol} ---")
+    def run_analysis(self, symbol: str, tools: List[str] = None):  
+        """
+        Orchestrates the analysis based on the selected tools plan.
+        tools: List of strings, e.g. ["macro"], ["micro"], or ["macro", "micro"]
+        """
+        logger.info(f"--- STARTING PIPELINE ANALYSIS FOR {symbol} (Tools: {tools}) ---")
         
+        if not tools:
+            tools = ["macro", "micro"] # Default fallback
+
         # Initial Progress
-        yield {"type": "progress", "step": "init", "message": "Initializing Analysis...", "percent": 5}
+        yield {"type": "progress", "step": "init", "message": f"Initializing {', '.join(tools)} Analysis...", "percent": 5}
         
+        macro_analysis_text = "Not requested."
+        micro_data = {"status": "skipped"}
+
         # --- Step 1: Macro News Analysis ---
-        yield {"type": "progress", "step": "news", "message": "Fetching & Analyzing Macro News...", "percent": 15}
-        logger.info("[Step 1] Fetching Macro News Data...")
-        try:
-            news_data = news_fetcher.fetch_stock_news(symbol=symbol, limit=10, timeframe_days=7)
-            
-            rag_system.ingest_news_documents(news_data)
-            
-            yield {"type": "progress", "step": "rag", "message": "Retrieving Context...", "percent": 30}
-            query = f"Analyze the macro outlook for {symbol} based on recent news."
-            context, _ = rag_system.retrieve_context(query)
-            
-            if not context or "No relevant" in context:
-                macro_analysis_text = "No significant macro news found for this period."
-            else:
-                macro_analysis_text = context
+        if "macro" in tools:
+            yield {"type": "progress", "step": "news", "message": "Fetching & Analyzing Macro News...", "percent": 20}
+            logger.info("[Step 1] Running Macro Analysis...")
+            try:
+                # Helper method could be extracted, but keeping inline for now to minimize risk
+                news_data = news_fetcher.fetch_stock_news(symbol=symbol, limit=10, timeframe_days=7)
+                rag_system.ingest_news_documents(news_data)
                 
-        except Exception as e:
-            logger.error(f"Macro analysis failed: {e}")
-            macro_analysis_text = f"Error performing macro analysis: {e}"
-            yield {"type": "error", "message": f"Macro Analysis Error: {str(e)}"}
-
-        logger.info("[Step 1] Macro Data Ready.")
-
+                yield {"type": "progress", "step": "rag", "message": "Retrieving Context...", "percent": 35}
+                query = f"Analyze the macro outlook for {symbol} based on recent news."
+                context, _ = rag_system.retrieve_context(query)
+                
+                if not context or "No relevant" in context:
+                    macro_analysis_text = "No significant macro news found for this period."
+                else:
+                    macro_analysis_text = context
+                    
+            except Exception as e:
+                logger.error(f"Macro analysis failed: {e}")
+                macro_analysis_text = f"Error performing macro analysis: {e}"
+                yield {"type": "error", "message": f"Macro Analysis Error: {str(e)}"}
+            logger.info("[Step 1] Macro Data Ready.")
+        
         # --- Step 2: Micro Model Analysis ---
-        yield {"type": "progress", "step": "model", "message": "Training Micro-Model (LSTM)...", "percent": 45}
-        logger.info("[Step 2] Training & Running Micro Model...")
-        try:
-            # Simulate training progress steps if possible, or just wait
-            micro_data = micro_model.execute_model_training(symbols_list=symbol, num_epochs=50)
-        except Exception as e:
-            logger.error(f"Micro analysis failed: {e}")
-            micro_data = {"error": str(e), "status": "failed"}
-            yield {"type": "error", "message": f"Model Training Error: {str(e)}"}
+        if "micro" in tools:
+            yield {"type": "progress", "step": "model", "message": "Training Micro-Model (LSTM)...", "percent": 60}
+            logger.info("[Step 2] Running Micro Analysis...")
+            try:
+                micro_data = micro_model.execute_model_training(symbols_list=symbol, num_epochs=50)
+            except Exception as e:
+                logger.error(f"Micro analysis failed: {e}")
+                micro_data = {"error": str(e), "status": "failed"}
+                yield {"type": "error", "message": f"Model Training Error: {str(e)}"}
+            logger.info("[Step 2] Micro Data Ready.")
 
-        logger.info("[Step 2] Micro Data Ready.")
         yield {"type": "progress", "step": "synthesis", "message": "Synthesizing Final Report...", "percent": 85}
 
         # --- Step 3: Synthesis ---
@@ -70,7 +80,8 @@ class StockAnalysisPipeline:
         final_report = self._synthesize_report(
             symbol=symbol,
             macro_text=macro_analysis_text,
-            micro_data=micro_data
+            micro_data=micro_data,
+            tools_used=tools
         )
         
         yield {"type": "progress", "step": "complete", "message": "Finalizing...", "percent": 98}
@@ -84,16 +95,23 @@ class StockAnalysisPipeline:
             "micro_analysis": micro_data
         }
 
-    def _synthesize_report(self, symbol: str, macro_text: str, micro_data: Dict[str, Any]) -> str:
+    def _synthesize_report(self, symbol: str, macro_text: str, micro_data: Dict[str, Any], tools_used: List[str]) -> str:
         
         micro_json = json.dumps(micro_data, indent=2)
+
+        # Contextualize System Prompt based on missing data
+        instruction_note = ""
+        if "macro" not in tools_used:
+             instruction_note += "\nNOTE: Macro Analysis was NOT requested. Do not hallucinate news. Focus on Technicals."
+        if "micro" not in tools_used:
+             instruction_note += "\nNOTE: Micro Analysis was NOT requested. Focus on News and Sentiment."
 
         # Prepare the system prompt by formatting the template
         formatted_system_prompt = StockAgentPrompts.REPORT_SYNTHESIS_SYSTEM.format(
             symbol=symbol,
             macro_text=macro_text,
             micro_json=micro_json
-        )
+        ) + instruction_note
         
         messages = [
             SystemMessage(content=formatted_system_prompt),
