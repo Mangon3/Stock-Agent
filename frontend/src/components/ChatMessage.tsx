@@ -10,8 +10,6 @@ export interface Message {
   data?: any; 
   isLoading?: boolean;
   isError?: boolean;
-  loadingProgress?: number;
-  loadingMessage?: string;
 }
 
 interface ChatMessageProps {
@@ -48,10 +46,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           
           {/* Loading State */}
           {message.isLoading && (
-            <LoadingState 
-              progress={message.loadingProgress} 
-              message={message.loadingMessage} 
-            />
+            <LoadingState />
           )}
 
           {/* Text Content (Markdown) */}

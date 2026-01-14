@@ -56,9 +56,7 @@ export default function Home() {
     const botPlaceholder: Message = {
       id: botMsgId,
       role: 'assistant',
-      isLoading: true,
-      loadingProgress: 0,
-      loadingMessage: "Initializing..."
+      isLoading: true
     };
 
     setMessages(prev => [...prev, userMsg, botPlaceholder]);
@@ -83,57 +81,72 @@ export default function Home() {
          throw new Error(`Analysis failed: ${response.statusText}`);
       }
 
-      // Stream Reader
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      // Check Content-Type to determine method
+      const contentType = response.headers.get("content-type");
       
-      if (!reader) throw new Error("No response body");
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6);
-            if (!jsonStr.trim()) continue;
-
-            try {
-              const data = JSON.parse(jsonStr);
-
-              // Update Bot Message State based on Event Type
-              setMessages(prev => prev.map(msg => {
-                if (msg.id !== botMsgId) return msg;
-
-                if (data.error) {
-                  return { ...msg, isLoading: false, isError: true, content: data.error };
-                }
-
-                if (data.type === 'progress') {
-                  return {
-                    ...msg,
-                    loadingProgress: data.percent,
-                    loadingMessage: data.message
-                  };
-                }
-
-                if (data.type === 'result') {
-                  return {
-                    ...msg,
-                    isLoading: false,
-                    data: data,
-                    content: data.final_report
-                  };
-                }
-
-                return msg;
-              }));
-
-            } catch (e) {
-              console.error("Error parsing stream chunk", e);
+      if (contentType && contentType.includes("application/json")) {
+        // Handle Legacy Non-Streaming Response
+        const result = await response.json();
+        
+        setMessages(prev => prev.map(msg =>
+          msg.id === botMsgId
+            ? { ...msg, isLoading: false, data: result, content: result.final_report }
+            : msg
+        ));
+        
+      } else {
+        // Handle SSE Streaming Response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (!reader) throw new Error("No response body");
+  
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+  
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n\n');
+  
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6);
+              if (!jsonStr.trim()) continue;
+  
+              try {
+                const data = JSON.parse(jsonStr);
+  
+                // Update Bot Message State based on Event Type
+                setMessages(prev => prev.map(msg => {
+                  if (msg.id !== botMsgId) return msg;
+  
+                  if (data.error) {
+                    return { ...msg, isLoading: false, isError: true, content: data.error };
+                  }
+  
+                  if (data.type === 'progress') {
+                    return {
+                      ...msg,
+                      loadingProgress: data.percent,
+                      loadingMessage: data.message
+                    };
+                  }
+  
+                  if (data.type === 'result') {
+                    return {
+                      ...msg,
+                      isLoading: false,
+                      data: data,
+                      content: data.final_report
+                    };
+                  }
+  
+                  return msg;
+                }));
+  
+              } catch (e) {
+                console.error("Error parsing stream chunk", e);
+              }
             }
           }
         }
