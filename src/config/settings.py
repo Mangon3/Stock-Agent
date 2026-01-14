@@ -42,6 +42,30 @@ class Settings(BaseSettings):
     REQUIRED_OHLCV_COLS: List[str] = ['open', 'high', 'low', 'close', 'volume', 'News_Sentiment_Score']
     DATA_TIMEFRAME_DAYS: int = 730
     DATA_INTERVAL: str = "1h"
+
+    # Descriptions
+    API_DESCRIPTION: str = "API for StockAgent - Financial Analysis and Prediction"
+    
+    NEWS_TOOL_DESCRIPTION: str = (
+        "Grab news on stock for the given symbol, limiting the number of articles "
+        "and the timeframe (in days). "
+        "Args: "
+        "symbol (str): The stock ticker symbol (e.g., 'MSFT'). "
+        "limit (int): Maximum number of articles to return (default: 5). "
+        "timeframe_days (int): How many days back to search for news (default: 7)."
+    )
+    
+    MICRO_TOOL_DESCRIPTION: str = (
+        "Initiates the micro-model training pipeline on the specified stock symbol. "
+        "It fetches historical data, calculates technical features, and trains "
+        "a LSTM neural network model for prediction. "
+        "Use this tool when the user asks to 'train the model', 'retrain the micro-model', "
+        "or 'update the prediction model'. "
+        "Args: "
+        "symbol (str): The stock ticker symbol to train on (e.g., 'AAPL'). "
+        "num_epochs (int): The number of training iterations to run (default: 50). "
+        "timeframe_days (int): The number of days of historical data to use for training (default: 150)."
+    )
     
     @property
     def INPUT_SIZE(self) -> int:

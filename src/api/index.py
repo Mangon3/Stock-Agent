@@ -12,7 +12,7 @@ logger = setup_logger(__name__)
 
 app = FastAPI(
     title="StockAgent API",
-    description="API for StockAgent - Financial Analysis and Prediction",
+    description=settings.API_DESCRIPTION,
     version="1.0.0"
 )
 

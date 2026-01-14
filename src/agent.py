@@ -2,8 +2,7 @@ from typing import List, Dict, Any
 import json
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_core.messages import HumanMessage
+
 
 
 from src.config.settings import settings

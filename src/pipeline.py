@@ -7,6 +7,7 @@ from src.tools.news import news_fetcher
 from src.tools.micro import micro_model
 from src.rag.core import rag_system
 from src.utils.logger import setup_logger
+from src.config.prompts import StockAgentPrompts
 
 logger = setup_logger(__name__)
 
@@ -69,30 +70,16 @@ class StockAnalysisPipeline:
         
         micro_json = json.dumps(micro_data, indent=2)
 
-        system_prompt = (
-            "You are a Senior Investment Analyst. Your task is to combine the results from a Macro News Analysis "
-            "and a Micro Prediction Model into a single, cohesive, and actionable investment report. "
-            "Follow the thought process outlined below to generate the FINAL REPORT."
-            "\n\n"
-            "*** THOUGHT PROCESS ***\n\n"
-            "1. **Macro Analysis (Sentiment):** Summarize the key drivers and risks identified in the Macro News Analysis. Determine the overall sentiment (Bullish/Bearish/Neutral) based on this news context."
-            "\n"
-            "2. **Micro Analysis (Technical):** Extract the following key metrics from the Micro Model Data: Latest Close Price, Model Signal, Confidence Level. Summarize what the model is predicting."
-            "\n"
-            "3. **Synthesis & Conclusion:** Compare the Macro Sentiment (from news) with the Micro Signal (from model). Are they aligned, or are they contradictory? State the final, combined investment thesis and outlook for the stock."
-            "\n\n"
-            "*** INPUT DATA ***\n"
-            f"TARGET SYMBOL: {symbol}\n\n"
-            "--- MACRO NEWS ANALYSIS (Qualitative) ---\n"
-            f"{macro_text}\n\n"
-            "--- MICRO MODEL DATA (Quantitative) ---\n"
-            f"{micro_json}\n\n"
-            "*** FINAL REPORT ***\n"
+        # Prepare the system prompt by formatting the template
+        formatted_system_prompt = StockAgentPrompts.REPORT_SYNTHESIS_SYSTEM.format(
+            symbol=symbol,
+            macro_text=macro_text,
+            micro_json=micro_json
         )
         
         messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=f"Generate the comprehensive investment report for {symbol}.")
+            SystemMessage(content=formatted_system_prompt),
+            HumanMessage(content=StockAgentPrompts.get_report_synthesis_user_msg(symbol))
         ]
         
         return self.llm.invoke(messages).content
