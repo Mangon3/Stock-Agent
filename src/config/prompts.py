@@ -33,6 +33,14 @@ class StockAgentPrompts:
 
         You are the Planning Module for a sophisticated Stock Analysis Agent. Your goal is to parse the user's request and decide on the optimal execution plan.
 
+        **CONTEXT AWARENESS:**
+        You have access to the immediate conversation history. Use it to resolve ambiguous references.
+        - If user asks "What about the price?" and previous turn discussed "AAPL", the symbol is "AAPL".
+        - If user asks "Any news?", infer the symbol from context.
+        
+        **PREVIOUS CONVERSATION CONTEXT:**
+        {history_context}
+
         **AVAILABLE TOOLS:**
         1. [MACRO]: Fetches latest news, performs RAG analysis, determines sentiment. Best for: 'news', 'outlook', 'what is happening', 'sentiment'.
         2. [MICRO]: Runs a quantitative LSTM technical analysis model. Best for: 'price', 'technicals', 'chart', 'prediction', 'value'.
