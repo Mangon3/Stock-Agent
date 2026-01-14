@@ -21,15 +21,21 @@ class StockAnalysisPipeline:
     def __init__(self, llm: ChatGoogleGenerativeAI):
         self.llm = llm
 
-    def run_analysis(self, symbol: str) -> Dict[str, Any]:
+    def run_analysis(self, symbol: str):  # -> Generator[Dict[str, Any], None, None]
         logger.info(f"--- STARTING PIPELINE ANALYSIS FOR {symbol} ---")
         
+        # Initial Progress
+        yield {"type": "progress", "step": "init", "message": "Initializing Analysis...", "percent": 5}
+        
         # --- Step 1: Macro News Analysis ---
+        yield {"type": "progress", "step": "news", "message": "Fetching & Analyzing Macro News...", "percent": 15}
         logger.info("[Step 1] Fetching Macro News Data...")
         try:
             news_data = news_fetcher.fetch_stock_news(symbol=symbol, limit=10, timeframe_days=7)
             
             rag_system.ingest_news_documents(news_data)
+            
+            yield {"type": "progress", "step": "rag", "message": "Retrieving Context...", "percent": 30}
             query = f"Analyze the macro outlook for {symbol} based on recent news."
             context, _ = rag_system.retrieve_context(query)
             
@@ -41,18 +47,23 @@ class StockAnalysisPipeline:
         except Exception as e:
             logger.error(f"Macro analysis failed: {e}")
             macro_analysis_text = f"Error performing macro analysis: {e}"
+            yield {"type": "error", "message": f"Macro Analysis Error: {str(e)}"}
 
         logger.info("[Step 1] Macro Data Ready.")
 
         # --- Step 2: Micro Model Analysis ---
+        yield {"type": "progress", "step": "model", "message": "Training Micro-Model (LSTM)...", "percent": 45}
         logger.info("[Step 2] Training & Running Micro Model...")
         try:
+            # Simulate training progress steps if possible, or just wait
             micro_data = micro_model.execute_model_training(symbols_list=symbol, num_epochs=50)
         except Exception as e:
             logger.error(f"Micro analysis failed: {e}")
             micro_data = {"error": str(e), "status": "failed"}
+            yield {"type": "error", "message": f"Model Training Error: {str(e)}"}
 
         logger.info("[Step 2] Micro Data Ready.")
+        yield {"type": "progress", "step": "synthesis", "message": "Synthesizing Final Report...", "percent": 85}
 
         # --- Step 3: Synthesis ---
         logger.info("[Step 3] Synthesizing Final Report...")
@@ -62,9 +73,16 @@ class StockAnalysisPipeline:
             micro_data=micro_data
         )
         
+        yield {"type": "progress", "step": "complete", "message": "Finalizing...", "percent": 98}
         logger.info(f"--- PIPELINE COMPLETE FOR {symbol} ---")
         
-        return final_report
+        # Final Result
+        yield {
+            "type": "result", 
+            "final_report": final_report,
+            "macro_analysis": macro_analysis_text,
+            "micro_analysis": micro_data
+        }
 
     def _synthesize_report(self, symbol: str, macro_text: str, micro_data: Dict[str, Any]) -> str:
         

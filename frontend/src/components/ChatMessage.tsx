@@ -1,16 +1,13 @@
 
-import ReactMarkdown from 'react-markdown';
-import { User, Bot } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { LoadingState } from '@/components/LoadingState';
-
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content?: string;
-  data?: any; // The full analysis JSON
+  data?: any; 
   isLoading?: boolean;
   isError?: boolean;
+  loadingProgress?: number;
+  loadingMessage?: string;
 }
 
 interface ChatMessageProps {
@@ -46,7 +43,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}>
           
           {/* Loading State */}
-          {message.isLoading && <LoadingState />}
+          {message.isLoading && (
+            <LoadingState 
+              progress={message.loadingProgress} 
+              message={message.loadingMessage} 
+            />
+          )}
 
           {/* Text Content (Markdown) */}
           {message.content && (
