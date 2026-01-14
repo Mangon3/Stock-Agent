@@ -7,6 +7,7 @@ from src.agent import Agent
 from src.app.persistence import cache_manager
 from src.utils.logger import setup_logger
 from src.config.settings import settings
+from src.memory.store import memory_store
 
 logger = setup_logger(__name__)
 
@@ -49,8 +50,8 @@ class AnalyzeRequest(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     symbol: str
-    macro_analysis: str
-    micro_analysis: Dict[str, Any]
+    macro_analysis: str = "N/A"
+    micro_analysis: Dict[str, Any] = {}
     final_report: str
 
 @app.get("/")
@@ -78,25 +79,51 @@ async def analyze_stock(
         # Instantiate PER-REQUEST Agent
         current_agent = Agent(api_key=api_key)
         
-        # Determine Symbol
+        # Determine Intent
+        intent = "STOCK_QUERY"
         symbol = request.symbol
+        query_text = request.query or (f"Analyze {symbol}" if symbol else "")
+        
         if not symbol and request.query:
-            logger.info(f"Parsing symbol from query: {request.query}")
-            symbol = current_agent.parse_symbol(request.query)
+            logger.info(f"Analyzing intent for query: {request.query}")
+            intent_data = current_agent.parse_intent(request.query)
+            intent = intent_data['intent']
+            symbol = intent_data['symbol']
             
-            if symbol == "UNKNOWN":
-                raise HTTPException(status_code=422, detail="Could not identify a stock symbol from the query. Please mention a company or ticker.")
+            logger.info(f"Determined Intent: {intent} | Symbol: {symbol}")
+            
+            if intent == "UNKNOWN":
+                raise HTTPException(status_code=422, detail="Could not understand the query. Please identify a stock or ask a question.")
         
-        symbol = symbol.upper()
-        
-        # Run Analysis
-        final_report = current_agent.run_analysis(symbol)
+        result_data = None
+
+        # Execute based on Intent
+        if intent == "STOCK_QUERY" and symbol:
+            symbol = symbol.upper()
+            result_data = current_agent.analyze(symbol)
+            # Ensure symbol is in result
+            result_data['symbol'] = symbol
+            
+        elif intent == "GENERAL_CHAT":
+            result_data = current_agent.respond_conversational(request.query)
+            
+        else:
+             # Fallback
+             raise HTTPException(status_code=422, detail="Invalid Request State.")
+
+        # Save to Memory
+        if result_data and 'final_report' in result_data:
+            memory_store.save_turn(
+                user_input=query_text,
+                model_output=result_data['final_report'],
+                intent=intent
+            )
 
         return AnalyzeResponse(
-            symbol=symbol,
-            macro_analysis="See Final Report", # Legacy field
-            micro_analysis={"status": "completed"}, # Legacy field
-            final_report=final_report
+            symbol=result_data.get('symbol', 'UNKNOWN'),
+            macro_analysis=result_data.get('macro_analysis', 'See Final Report'),
+            micro_analysis=result_data.get('micro_analysis', {}),
+            final_report=result_data.get('final_report', "No report generated.")
         )
 
     except HTTPException as he:
@@ -106,4 +133,3 @@ async def analyze_stock(
         traceback.print_exc()
         logger.error(f"Analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
