@@ -65,7 +65,7 @@ async def analyze_stock(
         logger.info(f"Analyzing intent for query: {request.query}")
         intent_data = current_agent.parse_intent(request.query)
         intent = intent_data['intent']
-        symbol = intent_data['symbol']
+        symbol = intent_data.get('symbol')
         
         if intent == "UNKNOWN":
              raise HTTPException(status_code=422, detail="Could not understand the query.")
