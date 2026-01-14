@@ -1,177 +1,202 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Search, Sparkles, Settings, Key, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Send, Settings, Key, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { LoadingState } from '@/components/LoadingState';
-import { AnalysisReport } from '@/components/AnalysisReport';
+import { ChatMessage, Message } from '@/components/ChatMessage';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Home() {
-  const [symbol, setSymbol] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [data, setData] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Settings State
   const [apiKey, setApiKey] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Auto-scroll ref
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('gemini_api_key');
     if (stored) setApiKey(stored);
   }, []);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   const handleKeyChange = (val: string) => {
     setApiKey(val);
     localStorage.setItem('gemini_api_key', val);
   };
 
-  const handleAnalyze = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!symbol) return;
+    if (!input.trim() || isLoading) return;
 
-    setStatus('loading');
-    setErrorMsg('');
-    setData(null);
+    const userQuery = input.trim();
+    setInput('');
+    setIsLoading(true);
+
+    // Add User Message
+    const userMsg: Message = {
+      id: uuidv4(),
+      role: 'user',
+      content: userQuery
+    };
+    
+    // Add Placeholder Bot Message
+    const botMsgId = uuidv4();
+    const botPlaceholder: Message = {
+      id: botMsgId,
+      role: 'assistant',
+      isLoading: true
+    };
+
+    setMessages(prev => [...prev, userMsg, botPlaceholder]);
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mangonnn-stock-agent.hf.space';
+      
       const response = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-gemini-api-key': apiKey // Pass the key (can be empty, backend handles fallback)
+          'x-gemini-api-key': apiKey
         },
         body: JSON.stringify({ 
-          symbol: symbol.toUpperCase(),
-          timeframe_days: 7 // Default
+          query: userQuery,
+          timeframe_days: 7 
         }),
       });
 
       if (!response.ok) {
-        if (response.status === 429) {
-           throw new Error("API Limit Reached (Free Tier). Please try again in ~60 seconds.");
-        }
-        throw new Error(`Analysis failed: ${response.statusText}`);
+         if (response.status === 429) throw new Error("API Limit Reached. Please try again later.");
+         throw new Error(`Analysis failed: ${response.statusText}`);
       }
 
       const result = await response.json();
-      setData(result);
-      setStatus('success');
+
+      // Update Bot Message with Result
+      setMessages(prev => prev.map(msg => 
+        msg.id === botMsgId 
+          ? { ...msg, isLoading: false, data: result, content: result.final_report } 
+          : msg
+      ));
+
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "Something went wrong. Please try again.");
-      setStatus('error');
+      setMessages(prev => prev.map(msg => 
+        msg.id === botMsgId 
+          ? { ...msg, isLoading: false, isError: true, content: err.message || "Something went wrong." } 
+          : msg
+      ));
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-black text-white selection:bg-blue-500/30">
-      {/* Background Gradients */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] opacity-50 mix-blend-screen animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[100px] opacity-30 mix-blend-screen" />
+    <main className="flex flex-col h-screen bg-black text-white selection:bg-blue-500/30 overflow-hidden">
+      
+      {/* Background Effects */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] opacity-30 animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] opacity-20" />
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-12 md:py-24 space-y-12">
-        
-
-        {/* Header & Settings */}
-        <div className="text-center space-y-4 relative">
-            <div className="absolute top-0 right-0">
-                <button 
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="p-2 text-gray-500 hover:text-white transition-colors"
-                >
-                    <Settings className="w-6 h-6" />
-                </button>
-            </div>
-
-           <AnimatePresence>
-            {showSettings && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-6 max-w-md mx-auto mb-8 text-left space-y-3">
-                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-300">
-                    <Key className="w-4 h-4 text-yellow-500" />
-                    <span>Gemini API Key (Optional)</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Provide your own key to bypass server rate limits. Keys are stored locally in your browser.
-                  </p>
-                  <input 
-                    type="password" 
-                    value={apiKey}
-                    onChange={(e) => handleKeyChange(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:ring-1 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </motion.div>
-            )}
-           </AnimatePresence>
-
-          <div className="inline-flex items-center space-x-2 bg-gray-900/50 border border-gray-800 rounded-full px-4 py-1.5 mb-4 backdrop-blur-sm">
-             <Sparkles className="w-4 h-4 text-blue-400" />
-             <span className="text-xs font-medium text-gray-300">Powered by Gemini 2.5 & Finnhub</span>
+      {/* Header */}
+      <header className="flex-none z-10 border-b border-gray-800 bg-black/50 backdrop-blur-md p-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+             <Sparkles className="w-5 h-5 text-blue-400" />
+             <h1 className="text-xl font-bold tracking-tight">Stock Agent <span className="text-gray-500 text-sm font-normal ml-2 hidden sm:inline">Autonomous Analyst</span></h1>
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
-            Stock Agent
-          </h1>
-          <p className="text-lg text-gray-400 max-w-xl mx-auto">
-            Autonomous AI market analyst that combines macro news sentiment with micro-model technical predictions.
+          <button 
+            onClick={() => setShowSettings(!showSettings)}
+            className="p-2 text-gray-500 hover:text-white transition-colors hover:bg-gray-800 rounded-lg"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Settings Panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="flex-none z-20 bg-gray-900 border-b border-gray-800"
+          >
+            <div className="max-w-5xl mx-auto p-4">
+                <div className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-2">
+                  <Key className="w-4 h-4 text-yellow-500" />
+                  <span>Gemini API Key</span>
+                </div>
+                <input 
+                  type="password" 
+                  value={apiKey}
+                  onChange={(e) => handleKeyChange(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full max-w-md bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto z-0 p-4 scroll-smooth">
+        <div className="max-w-4xl mx-auto min-h-full flex flex-col justify-end">
+           {messages.length === 0 ? (
+             <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-20 opacity-50">
+                <Sparkles className="w-12 h-12 text-blue-500" />
+                <h2 className="text-2xl font-semibold">How can I help you today?</h2>
+                <p className="max-w-md text-gray-400">Ask about any stock (e.g., "Analyze Microsoft" or "What's the outlook for NVDA?"). I'll gather news, run my models, and give you a report.</p>
+             </div>
+           ) : (
+             messages.map(msg => (
+               <ChatMessage key={msg.id} message={msg} />
+             ))
+           )}
+           <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Input Area */}
+      <div className="flex-none z-10 p-4 bg-gradient-to-t from-black via-black/90 to-transparent">
+        <div className="max-w-4xl mx-auto">
+          <form onSubmit={handleSubmit} className="relative flex items-center bg-gray-900 border border-gray-800 rounded-xl p-2 shadow-2xl focus-within:border-blue-500/50 transition-colors">
+            <input 
+              type="text" 
+              placeholder="Ask about a stock..." 
+              className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 px-4 py-3"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isLoading}
+            />
+            <button 
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </form>
+          <p className="text-center text-xs text-gray-600 mt-2">
+            AI can make mistakes. Please verify important financial information.
           </p>
         </div>
-
-        {/* Search Input (Only show when not success to keep header clean, or kept always? Let's keep always but minimal) */}
-        <div className={cn(
-          "max-w-md mx-auto transition-all duration-500",
-          status === 'success' ? "scale-90 opacity-75" : "scale-100"
-        )}>
-          <form onSubmit={handleAnalyze} className="relative group">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-500" />
-            <div className="relative flex items-center bg-gray-900 border border-gray-800 rounded-xl p-2 shadow-2xl">
-              <Search className="w-5 h-5 text-gray-500 ml-3" />
-              <input 
-                type="text" 
-                placeholder="Enter stock symbol (e.g. MSFT)" 
-                className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 px-4 py-2"
-                value={symbol}
-                onChange={(e) => setSymbol(e.target.value)}
-              />
-              <button 
-                type="submit"
-                disabled={status === 'loading'}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {status === 'loading' ? 'Analyzing...' : 'Analyze'}
-              </button>
-            </div>
-          </form>
-          {errorMsg && (
-            <p className="text-red-400 text-sm mt-3 text-center bg-red-900/10 border border-red-900/50 p-2 rounded-lg">
-              {errorMsg}
-            </p>
-          )}
-        </div>
-
-        {/* Content Area */}
-        <div className="min-h-[400px]">
-          {status === 'loading' && <LoadingState />}
-          {status === 'success' && data && <AnalysisReport data={data} />}
-          {status === 'idle' && (
-             <div className="text-center text-gray-600 mt-20">
-                <p>Enter a symbol above to start the autonomous analysis agent.</p>
-             </div>
-          )}
-        </div>
-
       </div>
+
     </main>
   );
 }
