@@ -1,7 +1,7 @@
 
+import ReactMarkdown from 'react-markdown';
 import { User, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AnalysisReport } from '@/components/AnalysisReport';
 import { LoadingState } from '@/components/LoadingState';
 
 export interface Message {
@@ -39,7 +39,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
         {/* Bubble */}
         <div className={cn(
-          "rounded-md px-4 py-2 text-xs md:text-sm shadow-none",
+          "rounded-md px-4 py-2 text-xs md:text-sm shadow-none overflow-hidden",
           isUser 
             ? "bg-white text-black rounded-tr-none" 
             : "bg-black border border-gray-800 text-gray-300 rounded-tl-none w-full"
@@ -48,15 +48,24 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {/* Loading State */}
           {message.isLoading && <LoadingState />}
 
-          {/* Text Content (if any) */}
+          {/* Text Content (Markdown) */}
           {message.content && (
-            <p className="whitespace-pre-wrap font-mono">{message.content}</p>
-          )}
-
-          {/* Analysis Report (if data exists) */}
-          {message.data && (
-            <div className="mt-4">
-               <AnalysisReport data={message.data} />
+            <div className={cn("prose prose-sm max-w-none font-mono", isUser ? "prose-p:text-black" : "prose-invert")}>
+               <ReactMarkdown
+                  components={{
+                    p: ({node, ...props}) => <p className={cn("mb-2 last:mb-0", isUser ? "text-black" : "text-gray-300")} {...props} />,
+                    strong: ({node, ...props}) => <strong className={cn("font-bold", isUser ? "text-black" : "text-white")} {...props} />,
+                    h1: ({node, ...props}) => <h1 className={cn("text-lg font-bold mt-4 mb-2 uppercase tracking-wider", isUser ? "text-black" : "text-white")} {...props} />,
+                    h2: ({node, ...props}) => <h2 className={cn("text-base font-bold mt-4 mb-2 border-b border-gray-700 pb-1", isUser ? "text-black border-gray-300" : "text-white")} {...props} />,
+                    h3: ({node, ...props}) => <h3 className={cn("text-sm font-bold mt-3 mb-1", isUser ? "text-black" : "text-white")} {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
+                    li: ({node, ...props}) => <li className={isUser ? "text-black" : "text-gray-300"} {...props} />,
+                    code: ({node, ...props}) => <code className={cn("px-1 py-0.5 rounded text-xs", isUser ? "bg-gray-200 text-black" : "bg-gray-900 text-white")} {...props} />
+                  }}
+               >
+                 {message.content}
+               </ReactMarkdown>
             </div>
           )}
 
