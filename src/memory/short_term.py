@@ -25,6 +25,16 @@ class ShortTermMemory:
         if len(self.history) > self.limit * 2:
             self.history = self.history[-(self.limit * 2):]
 
+    def get_context_string(self) -> str:
+        """Returns the history formatted for the LLM prompt."""
+        if not self.history:
+            return "No previous context."
+        
+        return "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in self.history])
+
+    def clear(self):
+        self.history = []
+
 
 # Global Singleton
 stm = ShortTermMemory(limit=3)  # Reduced from 10 to 3 to save tokens
