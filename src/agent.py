@@ -45,8 +45,12 @@ class Agent:
         if not query:
             return {'intent': 'UNKNOWN', 'symbol': None, 'tools': []}
             
+        history_context = stm.get_context_string()
+        # Formatted Prompt injection
+        formatted_prompt = StockAgentPrompts.PLANNING_SYSTEM_PROMPT.format(history_context=history_context)
+
         messages = [
-            SystemMessage(content=StockAgentPrompts.PLANNING_SYSTEM_PROMPT),
+            SystemMessage(content=formatted_prompt),
             HumanMessage(content=f"User Query: {query}")
         ]
         
