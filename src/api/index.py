@@ -9,6 +9,7 @@ from src.agent import Agent
 from src.utils.logger import setup_logger
 from src.config.settings import settings
 from src.memory.store import memory_store
+from src.memory.short_term import stm
 
 logger = setup_logger(__name__)
 
@@ -94,6 +95,8 @@ async def analyze_stock(
                             model_output=chunk['final_report'],
                             intent=intent
                         )
+                        # Save to Short Term Memory for Context
+                        stm.add_turn(query_text, chunk['final_report'])
                 
                 # Yield SSE Event
                 yield f"data: {json.dumps(chunk)}\n\n"
