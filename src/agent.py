@@ -9,6 +9,7 @@ from src.utils.retry import retry_with_backoff
 from src.pipeline import StockAnalysisPipeline
 from src.utils.logger import setup_logger
 from src.memory.store import memory_store
+from src.memory.short_term import stm
 
 logger = setup_logger(__name__)
 
