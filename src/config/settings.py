@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # Memory
     CONVERSATION_MEMORY_LIMIT: int = 10
-    VECTOR_STORE_PATH: str = "/data/vector_stores/conversation_history"
+    # VECTOR_STORE_PATH handled by property below
 
     # Descriptions
     API_DESCRIPTION: str = "API for StockAgent - Financial Analysis and Prediction"
@@ -67,6 +67,12 @@ class Settings(BaseSettings):
         if Path("/data").exists():
             return Path("/data/datasets/models/micro.pth")
         return self.PROJECT_ROOT / "data" / "datasets" / "models" / "micro.pth"
+
+    @property
+    def VECTOR_STORE_PATH(self) -> str:
+        if Path("/data").exists():
+            return "/data/vector_stores/conversation_history"
+        return str(self.PROJECT_ROOT / "data" / "vector_stores" / "conversation_history")
 
     class Config:
         env_file = ".env"
