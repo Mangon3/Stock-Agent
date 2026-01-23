@@ -58,7 +58,14 @@ async def stream_response(query: str):
                                 print(report)
                                 
                             # Handle Error
+                            elif chunk.get("type") == "error":
+                                code = chunk.get("code", "ERR")
+                                msg = chunk.get("message", "Unknown Error")
+                                print(f"\n[!] Error ({code}): {msg}")
+                                # Optional: print(f"    Details: {chunk.get('details')}")
+
                             elif "error" in chunk:
+                                # Legacy fallback
                                 print(f"\nServer Error: {chunk['error']}")
                                 
                         except json.JSONDecodeError:

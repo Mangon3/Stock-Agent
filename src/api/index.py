@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent import Agent
 from src.utils.logger import setup_logger
+from src.utils.errors import format_error
 from src.config.settings import settings
 from src.memory.store import memory_store
 from src.memory.short_term import stm
@@ -102,8 +103,9 @@ async def analyze_stock(
                 yield f"data: {json.dumps(chunk)}\n\n"
                 
         except Exception as e:
-            logger.error(f"Stream error: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            logger.exception("Analysis Stream Crash")
+            error_payload = format_error(e)
+            yield f"data: {json.dumps(error_payload)}\n\n"
 
     # 4. Return Streaming Response
     return StreamingResponse(

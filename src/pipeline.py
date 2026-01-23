@@ -1,5 +1,6 @@
 from typing import Dict, Any, List
 import json
+from src.utils.errors import format_error
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -56,9 +57,13 @@ class StockAnalysisPipeline:
                     macro_analysis_text = context
                     
             except Exception as e:
-                logger.error(f"Macro analysis failed: {e}")
-                macro_analysis_text = f"Error performing macro analysis: {e}"
-                yield {"type": "error", "message": f"Macro Analysis Error: {str(e)}"}
+                logger.exception("Macro analysis failed") # Full traceback
+                error_payload = format_error(e)
+                # Polite fallback for the LLM
+                macro_analysis_text = "Macro analysis unavailable due to a provider error."
+                # Inform User
+                yield error_payload
+                
             logger.info("[Step 1] Macro Data Ready.")
         
         # --- Step 2: Micro Model Analysis ---
@@ -68,9 +73,11 @@ class StockAnalysisPipeline:
             try:
                 micro_data = micro_model.execute_model_training(symbols_list=symbol, num_epochs=50)
             except Exception as e:
-                logger.error(f"Micro analysis failed: {e}")
-                micro_data = {"error": str(e), "status": "failed"}
-                yield {"type": "error", "message": f"Model Training Error: {str(e)}"}
+                logger.exception("Micro analysis failed") # Full traceback
+                error_payload = format_error(e)
+                micro_data = {"error": "Model training failed.", "status": "failed"}
+                yield error_payload
+                
             logger.info("[Step 2] Micro Data Ready.")
 
         yield {"type": "progress", "step": "synthesis", "message": "Synthesizing Final Report...", "percent": 85}
