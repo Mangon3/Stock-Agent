@@ -1,5 +1,4 @@
 from src.config.settings import settings
-
 import finnhub
 import joblib
 from pathlib import Path
@@ -7,13 +6,8 @@ from typing import Dict, Any, List
 from src.tools.sentiment.train import SentimentTrainer
 from src.utils.logger import setup_logger
 from datetime import datetime, timedelta
-
-
 logger = setup_logger(__name__)
-
-
 class NewsFetcher:
-
     def __init__(self):
         self.FINNHUB_API_KEY = settings.FINNHUB_API_KEY
         self.finnhub_client = None
@@ -21,27 +15,20 @@ class NewsFetcher:
             self.finnhub_client = finnhub.Client(api_key=self.FINNHUB_API_KEY)
         else:
             logger.warning("FINNHUB_API_KEY not found in environment.")
-            
-        # Sentiment model paths
         self.root_dir = Path(__file__).resolve().parent.parent.parent
-        
         if Path("/data").exists():
             self.model_dir = Path("/data/models")
         else:
             self.model_dir = self.root_dir / "data" / "datasets" / "models"
-
         self.model_path = self.model_dir / "sentiment_pipeline.pkl"
         self.encoder_path = self.model_dir / "sentiment_label_encoder.pkl"
-        
         self.pipeline = None
         self.label_encoder = None
-        
         if not self.model_path.exists() or not self.encoder_path.exists():
             logger.info(f"Sentiment model missing at {self.model_path}. Initiating auto-training...")
             self.train_model()
         else:
             self._load_model()
-
     def _load_model(self):
         """Attempts to assign self.pipeline and self.label_encoder if files exist."""
         try:
@@ -52,30 +39,22 @@ class NewsFetcher:
                 logger.info(f"Sentiment model not found at {self.model_path}. Training might be required.")
         except Exception as e:
             logger.warning(f"Failed to load sentiment model: {e}")
-
     def train_model(self):
         """Triggers the sentiment model training pipeline."""
         logger.info("Triggering sentiment model training from NewsFetcher...")
         trainer = SentimentTrainer()
         result = trainer.train()
-        # Reload after training
         self._load_model()
         return result
-
     def predict_sentiment(self, text: str) -> Dict[str, Any]:
         """Predicts sentiment for a given text."""
         if not self.pipeline or not self.label_encoder:
             return {"label": "N/A", "score": 0.0}
-        
         try:
-            # Predict class
             prediction_idx = self.pipeline.predict([text])[0]
             sentiment_label = self.label_encoder.inverse_transform([prediction_idx])[0]
-            
-            # Predict probability
             probs = self.pipeline.predict_proba([text])[0]
             confidence = max(probs)
-            
             return {
                 "label": sentiment_label,
                 "score": float(f"{confidence:.2f}")
@@ -83,7 +62,6 @@ class NewsFetcher:
         except Exception as e:
             logger.error(f"Sentiment prediction error: {e}")
             return {"label": "Error", "score": 0.0}
-
     def fetch_stock_news(
         self,
         symbol: str, 
@@ -93,43 +71,31 @@ class NewsFetcher:
         if self.finnhub_client is None:
             logger.error("Finnhub client is not initialized.")
             return [{"error": "Finnhub client not initialized."}]
-
         end_date = datetime.now()
         start_date = end_date - timedelta(days=timeframe_days)
-        
         to_timestamp = end_date.strftime("%Y-%m-%d")
         from_timestamp = start_date.strftime("%Y-%m-%d")
-        
         try:
             news_data = self.finnhub_client.company_news(
                 symbol=symbol.upper(), 
                 _from=from_timestamp, 
                 to=to_timestamp
             )
-
             if not news_data:
                 logger.info(f"No news found for {symbol}.")
                 return [{"warning": f"No news found for {symbol}."}]
-
             cleaned_articles = []
-            
             for article in news_data:
-                
                 publish_timestamp = article.get('datetime')
-                
                 try:
                     created_at_dt = datetime.fromtimestamp(publish_timestamp)
                     created_at_str = created_at_dt.strftime("%Y-%m-%d %H:%M:%S")
                 except Exception:
                     created_at_str = "N/A"
-
                 headline = article.get('headline')
                 if not headline:
                     continue
-                
-                # Analyze Sentiment
                 sentiment_result = self.predict_sentiment(headline)
-
                 cleaned_articles.append({
                     "id": article.get('id'),
                     "symbols": [symbol],
@@ -141,16 +107,12 @@ class NewsFetcher:
                     "sentiment_label": sentiment_result['label'],
                     "sentiment_score": sentiment_result['score']
                 })
-
                 if len(cleaned_articles) >= limit:
                     break
-            
             if not cleaned_articles:
                 logger.warning(f"No valid news articles found for {symbol} after filtering.")
                 return [{"warning": f"No valid news found for {symbol}."}]
-
             return cleaned_articles
-
         except finnhub.FinnhubAPIException as e:
             if "API limit reached" in str(e):
                 error_message = f"Finnhub API limit reached for {symbol}."
@@ -159,9 +121,7 @@ class NewsFetcher:
                 error_message = f"Finnhub API Error: {e}"
                 logger.error(error_message)
             return [{"error": error_message}]
-            
         except Exception as e:
             logger.exception(f"Failed to retrieve news due to unexpected issue: {e}")
             return [{"error": f"Failed to retrieve news due to unexpected issue: {e}"}]
-
 news_fetcher = NewsFetcher()

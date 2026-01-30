@@ -13,3 +13,8 @@ data/datasets/models/*.pkl
 data/vector_stores/
 .vercel
 .env*.local
+
+# Packaging
+*.egg-info/
+dist/
+build/

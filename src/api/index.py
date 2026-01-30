@@ -4,7 +4,6 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, model_validator
 from fastapi.middleware.cors import CORSMiddleware
-
 from src.agent import Agent
 from src.utils.logger import setup_logger
 from src.utils.errors import format_error
@@ -27,13 +26,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 class AnalyzeRequest(BaseModel):
     symbol: Optional[str] = None
     timeframe_days: Optional[int] = 7
     query: Optional[str] = None
-    
     @model_validator(mode='after')
+
     def check_symbol_or_query(self) -> 'AnalyzeRequest':
         if not self.symbol and not self.query:
             raise ValueError('Either symbol or query must be provided.')
@@ -51,14 +49,11 @@ async def analyze_stock(
     """
     Streaming Endpoint (SSE).
     """
-    # 1. Validation & Setup
+
     api_key = x_gemini_api_key or settings.GOOGLE_API_KEY
     if not api_key:
         raise HTTPException(status_code=401, detail="Missing API Key. Provide 'X-Gemini-API-Key' header.")
-
     current_agent = Agent(api_key=api_key)
-    
-    # 2. Determine Intent
     intent = "STOCK_QUERY"
     symbol = request.symbol
     query_text = request.query or (f"Analyze {symbol}" if symbol else "")
@@ -68,15 +63,12 @@ async def analyze_stock(
         intent_data = current_agent.parse_intent(request.query)
         intent = intent_data['intent']
         symbol = intent_data.get('symbol')
-        
         if intent == "UNKNOWN":
              raise HTTPException(status_code=422, detail="Could not understand the query.")
-    
-    # 3. Define the Stream Generator
+
     async def event_generator():
         try:
             stream_iterator = None
-            
             if intent == "STOCK_QUERY" and symbol:
                 tools_to_use = intent_data.get('tools') if 'intent_data' in locals() else None
                 stream_iterator = current_agent.analyze(symbol.upper(), tools=tools_to_use)
@@ -85,35 +77,27 @@ async def analyze_stock(
             else:
                 yield f"data: {json.dumps({'error': 'Invalid Intent'})}\n\n"
                 return
-
             for chunk in stream_iterator:
-                # Check if this is the final result to save to memory
                 if chunk.get("type") == "result":
-                    # Save to Memory
                     if 'final_report' in chunk:
                         memory_store.save_turn(
                             user_input=query_text,
                             model_output=chunk['final_report'],
                             intent=intent
                         )
-                        # Save to Short Term Memory for Context
                         stm.add_turn(query_text, chunk['final_report'])
-                
-                # Yield SSE Event
                 yield f"data: {json.dumps(chunk)}\n\n"
-                
         except Exception as e:
             logger.exception("Analysis Stream Crash")
             error_payload = format_error(e)
             yield f"data: {json.dumps(error_payload)}\n\n"
 
-    # 4. Return Streaming Response
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no" # Disable buffering for Nginx/Vercel
+            "X-Accel-Buffering": "no" 
         }
     )

@@ -8,17 +8,12 @@ from datetime import datetime, timedelta
 from tvDatafeed import TvDatafeed, Interval
 from dotenv import load_dotenv
 from src.utils.logger import setup_logger
-
 load_dotenv()
 logger = setup_logger(__name__)
-
 class TvDataFetcher:
-    
     def __init__(self):
         self.tv = self._initialize_tv_datafeed()
-
     def _initialize_tv_datafeed(self):
-        
         try:
             tv_instance = TvDatafeed()
             return tv_instance
@@ -30,16 +25,11 @@ class TvDataFetcher:
             else:
                  logger.error(f"Failed to initialize TvDatafeed. {e}")
             return None
-
     def fetch_historical_data(self, symbol: str, timeframe_days: int, exchange: str = "NASDAQ", interval: str = None) -> Union[pd.DataFrame, Dict[str, str]]:
         if self.tv is None:
             return {"error": "TvDatafeed is not initialized. Cannot fetch data."}
-            
-        # Determine Interval
-        # Default to settings if not provided
         from src.config.settings import settings
         interval_str = interval or settings.DATA_INTERVAL
-        
         tv_interval = Interval.in_daily
         if interval_str == "1h":
             tv_interval = Interval.in_1_hour
@@ -47,32 +37,22 @@ class TvDataFetcher:
         else:
             tv_interval = Interval.in_daily
             n_bars = int(timeframe_days * 1.5)
-
         try:
-            # Request data
             data = self.tv.get_hist(
                 symbol=symbol,
                 exchange=exchange,
                 interval=tv_interval,
                 n_bars=n_bars
             )
-
             if data is None or data.empty:
                 return {"error": f"No historical data found for {symbol} on {exchange}."}
-
             data.columns = [col.lower() for col in data.columns]
-            
-            # Sentiment signal injection
             returns_5d = data['close'].pct_change(5).fillna(0)
             proxy_sentiment = 1 / (1 + np.exp(-returns_5d * 10))
             noise = np.random.normal(0, 0.05, len(data))
             data['News_Sentiment_Score'] = (proxy_sentiment + noise).clip(0, 1)
-            
             data = data[['open', 'high', 'low', 'close', 'volume', 'News_Sentiment_Score']]
-
             return data
-
         except Exception as e:
             return {"error": f"Data fetching error for {symbol}: {e}"}
-
 tv_data_fetcher = TvDataFetcher()

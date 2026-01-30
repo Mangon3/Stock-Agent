@@ -4,9 +4,7 @@ from langchain_core.tools import tool
 from src.tools.news import news_fetcher
 from src.tools.micro import micro_model
 from src.utils.logger import setup_logger
-
 logger = setup_logger(__name__)
-
 @tool(description=settings.NEWS_TOOL_DESCRIPTION)
 def get_recent_news(
     symbol: str,
@@ -18,7 +16,6 @@ def get_recent_news(
     """
     logger.info(f"Calling Finnhub news tool for: {symbol}...")
     return news_fetcher.fetch_stock_news(symbol, limit, timeframe_days)
-
 @tool(description=settings.MICRO_TOOL_DESCRIPTION)
 def micro_analysis(
     symbol: str,
@@ -34,5 +31,4 @@ def micro_analysis(
         symbols_list=symbol, 
         num_epochs=num_epochs
     )
-
 tools = [get_recent_news, micro_analysis]

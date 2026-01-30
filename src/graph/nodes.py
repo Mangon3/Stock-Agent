@@ -7,15 +7,12 @@ from src.utils.logger import setup_logger
 from src.utils.retry import retry_with_backoff
 import re
 import uuid
-
 logger = setup_logger(__name__)
-
 @retry_with_backoff(max_retries=5)
 def call_model(state: AgentState, model):
     logger.info("DEBUG: Entering call_model node.")
     messages = state['messages']
     logger.info(f"DEBUG: Invoking model with {len(messages)} messages.")
-    
     try:
         response = model.invoke(messages)
     except Exception as e:
@@ -24,31 +21,21 @@ def call_model(state: AgentState, model):
             "resource_exhausted" in error_msg or 
             "quota" in error_msg):
              logger.warning(f"Rate limit hit ({e}). Raising to trigger robust retry...")
-             raise # Re-raise to let @retry_with_backoff handle it
-
+             raise 
         if "output text or tool calls" in error_msg or "cannot both be empty" in error_msg:
              logger.warning(f"Model failed with expected error: {e}. Preparing fallback...")
              response = None
         else:
-
              logger.error(f"DEBUG: Model invocation failed with critical error: {e}")
              raise
-
-    # Fallback
     has_micro_tool_run = any(
         isinstance(m, ToolMessage) and m.name == 'micro_analysis' 
         for m in messages
     )
-    
-    # 2. Determine if the model FAILED to call it (Empty response OR Final answer without tool)
     is_empty_response = response is None or (not response.tool_calls and not response.content)
     missed_tool_call = (response and not response.tool_calls and not has_micro_tool_run)
-
     if is_empty_response or missed_tool_call:
-        
         symbol = None
-        
-        # Scan messages backwards to find the user request
         for m in reversed(messages):
             if isinstance(m, HumanMessage):
                 content = m.content
@@ -57,11 +44,8 @@ def call_model(state: AgentState, model):
                      if match:
                          symbol = match.group(0)
                          break
-        
         if symbol:
             logger.warning(f"Model missed micro-analysis for {symbol}. Forcing fallback logic...")
-            
-            # Manual tool call
             call_id = str(uuid.uuid4())
             manual_call = {
                 "name": "micro_analysis",
@@ -69,7 +53,6 @@ def call_model(state: AgentState, model):
                 "id": call_id,
                 "type": "tool_call"
             }
-            
             response = AIMessage(
                 content="", 
                 tool_calls=[manual_call]
@@ -79,9 +62,7 @@ def call_model(state: AgentState, model):
                  logger.error("Could not recover from empty response (Symbol not found).")
                  if response is None:
                      raise ValueError("Model failed and fallback logic could not determine symbol.")
-
     logger.info(f"DEBUG: Final Response content: {response.content}")
     if response.tool_calls:
         logger.info(f"DEBUG: Tool calls: {response.tool_calls}")
-
     return {"messages": [response]}
